@@ -1,0 +1,25 @@
+steps:
+- name: 'gcr.io/cloud-builders/go'
+  args: ['test', './...']
+  env: ['PROJECT_ROOT=github.com/sinmetal/alminium_spanner']
+- name: 'gcr.io/cloud-builders/go'
+  args: ['install', '-a', '-ldflags', '-s', '-installsuffix', 'cgo', 'github.com/sinmetal/alminium_spanner']
+  env: [
+    'PROJECT_ROOT=github.com/sinmetal/alminium_spanner',
+    'CGO_ENABLED=0',
+    'GOOS=linux'
+  ]
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '--tag=gcr.io/$PROJECT_ID/sinmetal/alminium_spanner/$BRANCH_NAME:$COMMIT_SHA', '.']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ["push", "gcr.io/$PROJECT_ID/sinmetal/alminium_spanner/$BRANCH_NAME:$COMMIT_SHA"]
+- name: 'gcr.io/cloud-builders/kubectl'
+  args:
+    - set
+    - image
+    - deployment/alminium-spanner-node
+    - alminium-spanner-node=gcr.io/$PROJECT_ID/sinmetal/alminium_spanner/$BRANCH_NAME:$COMMIT_SHA
+  env:
+    - 'CLOUDSDK_COMPUTE_ZONE=asia-northeast1-b'
+    - 'CLOUDSDK_CONTAINER_CLUSTER=sinmetal-tokyo'
+images: ['gcr.io/$PROJECT_ID/sinmetal/alminium_spanner/$BRANCH_NAME:$COMMIT_SHA']

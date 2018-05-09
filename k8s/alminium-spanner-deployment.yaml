@@ -1,0 +1,19 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    name: alminium-spanner-node
+  name: alminium-spanner-node
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: alminium-spanner-node
+    spec:
+      containers:
+      - image: gcr.io/$PROJECT_ID/sinmetal/alminium_spanner
+        name: alminium-spanner-node
+        envFrom:
+          - configMapRef:
+              name: config
