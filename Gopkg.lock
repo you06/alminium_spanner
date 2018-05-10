@@ -9,11 +9,10 @@
     "internal/atomiccache",
     "internal/fields",
     "internal/protostruct",
+    "internal/tracecontext",
     "internal/version",
-    "longrunning",
-    "longrunning/autogen",
     "spanner",
-    "spanner/admin/database/apiv1"
+    "trace"
   ]
   revision = "056a55f54a6cc77b440b31a56a5e7c3982d32811"
   version = "v0.22.0"
@@ -34,10 +33,16 @@
   version = "v1.1.0"
 
 [[projects]]
-  name = "github.com/googleapis/gax-go"
+  name = "github.com/google/uuid"
   packages = ["."]
-  revision = "317e0006254c44a0ac427cc52a0e083ff0b9622f"
-  version = "v2.0.0"
+  revision = "064e2069ce9c359c118179501254f67d7d37ba24"
+  version = "0.2"
+
+[[projects]]
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
 
 [[projects]]
   name = "go.opencensus.io"
@@ -87,6 +92,12 @@
   revision = "cdc340f7c179dbbfa4afd43b7614e8fcadde4269"
 
 [[projects]]
+  branch = "master"
+  name = "golang.org/x/sync"
+  packages = ["semaphore"]
+  revision = "1d60e4601c6fd243af51cc01ddf169918a5407ca"
+
+[[projects]]
   name = "golang.org/x/text"
   packages = [
     "collate",
@@ -109,13 +120,23 @@
 
 [[projects]]
   branch = "master"
+  name = "golang.org/x/time"
+  packages = ["rate"]
+  revision = "fbb02b2291d28baffd63558aa44b4b56f178d650"
+
+[[projects]]
+  branch = "master"
   name = "google.golang.org/api"
   packages = [
+    "cloudtrace/v1",
+    "gensupport",
+    "googleapi",
+    "googleapi/internal/uritemplates",
     "googleapi/transport",
     "internal",
     "iterator",
     "option",
-    "transport",
+    "support/bundler",
     "transport/grpc",
     "transport/http"
   ]
@@ -145,11 +166,8 @@
   name = "google.golang.org/genproto"
   packages = [
     "googleapis/api/annotations",
-    "googleapis/iam/v1",
-    "googleapis/longrunning",
     "googleapis/rpc/errdetails",
     "googleapis/rpc/status",
-    "googleapis/spanner/admin/database/v1",
     "googleapis/spanner/v1"
   ]
   revision = "86e600f69ee4704c6efbf6a2a40a5c10700e76c2"
@@ -189,6 +207,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4437252944dfccd849e93dfce143f0cc17950f0acf9782eb85ee9709e1e3ff47"
+  inputs-digest = "bd6b698367201adea468c63b22613454a8ba7983f5c9db96bc34d359a19790c8"
   solver-name = "gps-cdcl"
   solver-version = 1
