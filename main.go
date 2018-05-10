@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -9,7 +10,6 @@ import (
 
 	"cloud.google.com/go/spanner"
 	"github.com/google/uuid"
-	"golang.org/x/net/context"
 )
 
 func main() {
@@ -26,9 +26,9 @@ func main() {
 	for {
 		if err := ts.Insert(ctx, &Tweet{
 			ID:         uuid.New().String(),
-			Author:     "sinmetal",
+			Author:     getAuthor(),
 			Content:    uuid.New().String(),
-			Favos:      []string{"vvakame"},
+			Favos:      getAuthors(),
 			Sort:       rand.Int(),
 			CreatedAt:  time.Now(),
 			UpdatedAt:  time.Now(),
@@ -46,4 +46,25 @@ func createClient(ctx context.Context, db string) *spanner.Client {
 	}
 
 	return dataClient
+}
+
+func getAuthor() string {
+	c := []string{"gold", "silver", "dia", "ruby", "sapphire"}
+	return c[rand.Intn(len(c))]
+}
+
+func getAuthors() []string {
+	exists := make(map[string]string)
+
+	count := rand.Intn(4)
+	for i := 0; i < count; i++ {
+		a := getAuthor()
+		exists[a] = a
+	}
+
+	authors := []string{}
+	for k, _ := range exists {
+		authors = append(authors, k)
+	}
+	return authors
 }
