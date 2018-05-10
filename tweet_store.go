@@ -52,7 +52,7 @@ func (s *defaultTweetStore) TableName() string {
 
 // Insert is Insert to Tweet
 func (s *defaultTweetStore) Insert(ctx context.Context, tweet *Tweet) error {
-	ts := s.tc.NewSpan("/spanner/insert")
+	ts := s.tc.NewSpan("/tweet/insert")
 	defer ts.Finish()
 
 	m, err := spanner.InsertStruct(s.TableName(), tweet)

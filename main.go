@@ -40,6 +40,8 @@ func main() {
 	ts := NewTweetStore(tc, sc)
 
 	for {
+		ctx := context.Background()
+		id := uuid.New().String()
 		if err := ts.Insert(ctx, &Tweet{
 			ID:         uuid.New().String(),
 			Author:     getAuthor(),
@@ -52,6 +54,7 @@ func main() {
 		}); err != nil {
 			panic(err)
 		}
+		fmt.Printf("TWEET_INSERT ID = %s\n", id)
 	}
 }
 
