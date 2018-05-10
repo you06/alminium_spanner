@@ -11,6 +11,7 @@
     "internal/protostruct",
     "internal/tracecontext",
     "internal/version",
+    "profiler",
     "spanner",
     "trace"
   ]
@@ -33,10 +34,22 @@
   version = "v1.1.0"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/google/pprof"
+  packages = ["profile"]
+  revision = "4d67f66d7c9469639518a80f378434bb7e9156b7"
+
+[[projects]]
   name = "github.com/google/uuid"
   packages = ["."]
   revision = "064e2069ce9c359c118179501254f67d7d37ba24"
   version = "0.2"
+
+[[projects]]
+  name = "github.com/googleapis/gax-go"
+  packages = ["."]
+  revision = "317e0006254c44a0ac427cc52a0e083ff0b9622f"
+  version = "v2.0.0"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -166,6 +179,7 @@
   name = "google.golang.org/genproto"
   packages = [
     "googleapis/api/annotations",
+    "googleapis/devtools/cloudprofiler/v2",
     "googleapis/rpc/errdetails",
     "googleapis/rpc/status",
     "googleapis/spanner/v1"
@@ -207,6 +221,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bd6b698367201adea468c63b22613454a8ba7983f5c9db96bc34d359a19790c8"
+  inputs-digest = "e8baf5a961dc626c7d45b6af07e3f6e23a94d0967c949474a95181c3152f3eba"
   solver-name = "gps-cdcl"
   solver-version = 1
