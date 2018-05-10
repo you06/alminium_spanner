@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
+	"cloud.google.com/go/trace"
 	"github.com/pkg/errors"
 )
 
@@ -17,10 +18,11 @@ type TweetStore interface {
 var tweetStore TweetStore
 
 // NewTweetStore is New TweetStore
-func NewTweetStore(client *spanner.Client) TweetStore {
+func NewTweetStore(tc *trace.Client, sc *spanner.Client) TweetStore {
 	if tweetStore == nil {
 		tweetStore = &defaultTweetStore{
-			client,
+			tc: tc,
+			sc: sc,
 		}
 	}
 	return tweetStore
@@ -39,7 +41,8 @@ type Tweet struct {
 }
 
 type defaultTweetStore struct {
-	*spanner.Client
+	tc *trace.Client
+	sc *spanner.Client
 }
 
 // TableName is return Table Name for Spanner
@@ -49,6 +52,9 @@ func (s *defaultTweetStore) TableName() string {
 
 // Insert is Insert to Tweet
 func (s *defaultTweetStore) Insert(ctx context.Context, tweet *Tweet) error {
+	ts := s.tc.NewSpan("/spanner/insert")
+	defer ts.Finish()
+
 	m, err := spanner.InsertStruct(s.TableName(), tweet)
 	if err != nil {
 		return errors.WithStack(err)
@@ -57,7 +63,7 @@ func (s *defaultTweetStore) Insert(ctx context.Context, tweet *Tweet) error {
 		m,
 	}
 
-	_, err = s.Client.Apply(ctx, ms)
+	_, err = s.sc.Apply(ctx, ms)
 	if err != nil {
 		return errors.WithStack(err)
 	}

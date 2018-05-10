@@ -3,13 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/rand"
 	"os"
 	"time"
 
 	"cloud.google.com/go/spanner"
+	"cloud.google.com/go/trace"
 	"github.com/google/uuid"
+	"google.golang.org/api/option"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -18,10 +20,24 @@ func main() {
 	spannerDatabase := os.Getenv("SPANNER_DATABASE")
 	fmt.Printf("Env SPANNER_DATABASE:%s\n", spannerDatabase)
 
-	ctx := context.Background()
-	client := createClient(ctx, spannerDatabase)
+	cloudTraceProject := os.Getenv("CLOUD_TRACE_PROJECT")
+	fmt.Printf("Env CLOUD_TRACE_PROJECT:%s\n", cloudTraceProject)
 
-	ts := NewTweetStore(client)
+	ctx := context.Background()
+
+	tc, err := trace.NewClient(ctx, cloudTraceProject)
+	if err != nil {
+		panic(err)
+	}
+	do := grpc.WithUnaryInterceptor(tc.GRPCClientInterceptor())
+	o := option.WithGRPCDialOption(do)
+
+	sc, err := createClient(ctx, spannerDatabase, o)
+	if err != nil {
+		panic(err)
+	}
+
+	ts := NewTweetStore(tc, sc)
 
 	for {
 		if err := ts.Insert(ctx, &Tweet{
@@ -39,13 +55,13 @@ func main() {
 	}
 }
 
-func createClient(ctx context.Context, db string) *spanner.Client {
-	dataClient, err := spanner.NewClient(ctx, db)
+func createClient(ctx context.Context, db string, o ...option.ClientOption) (*spanner.Client, error) {
+	dataClient, err := spanner.NewClient(ctx, db, o...)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	return dataClient
+	return dataClient, nil
 }
 
 func getAuthor() string {
