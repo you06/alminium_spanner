@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"cloud.google.com/go/profiler"
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/trace"
 	"github.com/google/uuid"
@@ -20,12 +21,17 @@ func main() {
 	spannerDatabase := os.Getenv("SPANNER_DATABASE")
 	fmt.Printf("Env SPANNER_DATABASE:%s\n", spannerDatabase)
 
-	cloudTraceProject := os.Getenv("CLOUD_TRACE_PROJECT")
-	fmt.Printf("Env CLOUD_TRACE_PROJECT:%s\n", cloudTraceProject)
+	stackdriverProject := os.Getenv("STACKDRIVER_PROJECT")
+	fmt.Printf("Env STACKDRIVER_PROJECT:%s\n", stackdriverProject)
+
+	// Profiler initialization, best done as early as possible.
+	if err := profiler.Start(profiler.Config{ProjectID: stackdriverProject, Service: "alminium_spanner", ServiceVersion: "0.0.1"}); err != nil {
+		panic(err)
+	}
 
 	ctx := context.Background()
 
-	tc, err := trace.NewClient(ctx, cloudTraceProject)
+	tc, err := trace.NewClient(ctx, stackdriverProject)
 	if err != nil {
 		panic(err)
 	}
