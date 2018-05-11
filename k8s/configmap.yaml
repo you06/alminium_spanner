@@ -4,3 +4,5 @@ metadata:
   name: config
 data:
   HELLO: WORLD
+  SPANNER_DATABASE: projects/{project-id}/instances/{instance-id}/databases/{database}
+  STACKDRIVER_PROJECT: {stackdriver-project-id}
