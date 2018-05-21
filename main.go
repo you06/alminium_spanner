@@ -73,7 +73,15 @@ func main() {
 			if err != nil {
 				endCh <- err
 			}
-			fmt.Printf("TWEET_LIST %+v\n", tl)
+			fmt.Printf("TWEET_LIST Length %d\n", len(tl))
+
+			for _, v := range tl {
+				_, err := ts.Get(ctx, spanner.Key{v.ID})
+				if err != nil {
+					endCh <- err
+				}
+				fmt.Printf("TWEET_GET ID = %s\n", v.ID)
+			}
 		}
 	}()
 
