@@ -6,6 +6,7 @@ import (
 
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/trace"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 )
@@ -62,8 +63,13 @@ func (s *defaultTweetStore) Insert(ctx context.Context, tweet *Tweet) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	om, err := NewOperationInsertMutation(uuid.New().String(), "INSERT", tweet.ID, s.TableName(), tweet)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	ms := []*spanner.Mutation{
 		m,
+		om,
 	}
 
 	_, err = s.sc.Apply(ctx, ms)
