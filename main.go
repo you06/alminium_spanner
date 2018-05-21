@@ -45,23 +45,40 @@ func main() {
 
 	ts := NewTweetStore(tc, sc)
 
-	for {
-		ctx := context.Background()
-		id := uuid.New().String()
-		if err := ts.Insert(ctx, &Tweet{
-			ID:         uuid.New().String(),
-			Author:     getAuthor(),
-			Content:    uuid.New().String(),
-			Favos:      getAuthors(),
-			Sort:       rand.Int(),
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
-			CommitedAt: spanner.CommitTimestamp,
-		}); err != nil {
-			panic(err)
+	endCh := make(chan error)
+	go func() {
+		for {
+			ctx := context.Background()
+			id := uuid.New().String()
+			if err := ts.Insert(ctx, &Tweet{
+				ID:         uuid.New().String(),
+				Author:     getAuthor(),
+				Content:    uuid.New().String(),
+				Favos:      getAuthors(),
+				Sort:       rand.Int(),
+				CreatedAt:  time.Now(),
+				UpdatedAt:  time.Now(),
+				CommitedAt: spanner.CommitTimestamp,
+			}); err != nil {
+				endCh <- err
+			}
+			fmt.Printf("TWEET_INSERT ID = %s\n", id)
 		}
-		fmt.Printf("TWEET_INSERT ID = %s\n", id)
-	}
+	}()
+
+	go func() {
+		for {
+			ctx := context.Background()
+			tl, err := ts.Query(ctx, 50)
+			if err != nil {
+				endCh <- err
+			}
+			fmt.Printf("TWEET_LIST %+v\n", tl)
+		}
+	}()
+
+	err = <-endCh
+	fmt.Printf("%+v", err)
 }
 
 func createClient(ctx context.Context, db string, o ...option.ClientOption) (*spanner.Client, error) {

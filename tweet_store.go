@@ -7,12 +7,14 @@ import (
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/trace"
 	"github.com/pkg/errors"
+	"google.golang.org/api/iterator"
 )
 
 // TweetStore is TweetTable Functions
 type TweetStore interface {
 	TableName() string
 	Insert(ctx context.Context, tweet *Tweet) error
+	Query(ctx context.Context, limit int) ([]*Tweet, error)
 }
 
 var tweetStore TweetStore
@@ -69,4 +71,34 @@ func (s *defaultTweetStore) Insert(ctx context.Context, tweet *Tweet) error {
 	}
 
 	return nil
+}
+
+// Query is Tweet を sort_ascで取得する
+func (s *defaultTweetStore) Query(ctx context.Context, limit int) ([]*Tweet, error) {
+	ts := s.tc.NewSpan("/tweet/query")
+	defer ts.Finish()
+
+	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "sort_asc", spanner.AllKeys(), []string{"Sort"})
+	defer iter.Stop()
+
+	count := 0
+	tweets := []*Tweet{}
+	for {
+		if count >= limit {
+			return tweets, nil
+		}
+		row, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		var tweet Tweet
+		row.ToStruct(&tweet)
+		tweets = append(tweets, &tweet)
+		count++
+	}
+
+	return tweets, nil
 }
