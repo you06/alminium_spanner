@@ -75,6 +75,9 @@ func (s *defaultTweetStore) Insert(ctx context.Context, tweet *Tweet) error {
 
 // Query is Tweet を sort_ascで取得する
 func (s *defaultTweetStore) Query(ctx context.Context, limit int) ([]*Tweet, error) {
+	ts := s.tc.NewSpan("/tweet/query")
+	defer ts.Finish()
+
 	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "sort_asc", spanner.AllKeys(), []string{"Sort"})
 	defer iter.Stop()
 
