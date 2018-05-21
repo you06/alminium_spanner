@@ -14,6 +14,7 @@ import (
 type TweetStore interface {
 	TableName() string
 	Insert(ctx context.Context, tweet *Tweet) error
+	Get(ctx context.Context, key spanner.Key) (*Tweet, error)
 	Query(ctx context.Context, limit int) ([]*Tweet, error)
 }
 
@@ -73,12 +74,25 @@ func (s *defaultTweetStore) Insert(ctx context.Context, tweet *Tweet) error {
 	return nil
 }
 
+func (s defaultTweetStore) Get(ctx context.Context, key spanner.Key) (*Tweet, error) {
+	ts := s.tc.NewSpan("/tweet/get")
+	defer ts.Finish()
+
+	row, err := s.sc.Single().ReadRow(ctx, s.TableName(), key, []string{"Author", "CommitedAt", "Content", "CreatedAt", "Favos", "Sort", "UpdatedAt"})
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	var tweet Tweet
+	row.ToStruct(&tweet)
+	return &tweet, nil
+}
+
 // Query is Tweet を sort_ascで取得する
 func (s *defaultTweetStore) Query(ctx context.Context, limit int) ([]*Tweet, error) {
 	ts := s.tc.NewSpan("/tweet/query")
 	defer ts.Finish()
 
-	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "sort_asc", spanner.AllKeys(), []string{"Sort"})
+	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "sort_asc", spanner.AllKeys(), []string{"Id", "Sort"})
 	defer iter.Stop()
 
 	count := 0
@@ -94,6 +108,7 @@ func (s *defaultTweetStore) Query(ctx context.Context, limit int) ([]*Tweet, err
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
+
 		var tweet Tweet
 		row.ToStruct(&tweet)
 		tweets = append(tweets, &tweet)
