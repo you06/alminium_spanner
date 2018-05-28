@@ -46,6 +46,7 @@ func main() {
 	ts := NewTweetStore(tc, sc)
 	tcs := NewTweetCompositeKeyStore(tc, sc)
 	ths := NewTweetHashKeyStore(tc, sc)
+	tus := NewTweetUniqueIndexStore(tc, sc)
 
 	endCh := make(chan error)
 	go func() {
@@ -108,6 +109,28 @@ func main() {
 				endCh <- err
 			}
 			fmt.Printf("TWEET_HASHKEY_INSERT ID = %s\n", id)
+		}
+	}()
+
+	go func() {
+		for {
+			ctx := context.Background()
+			id := uuid.New().String()
+			tweet := &TweetUniqueIndex{
+				ID:         id,
+				TweetID:    uuid.New().String(),
+				Author:     getAuthor(),
+				Content:    uuid.New().String(),
+				Favos:      getAuthors(),
+				Sort:       rand.Int(),
+				CreatedAt:  time.Now(),
+				UpdatedAt:  time.Now(),
+				CommitedAt: spanner.CommitTimestamp,
+			}
+			if err := tus.Insert(ctx, tweet); err != nil {
+				endCh <- err
+			}
+			fmt.Printf("TWEET_UNIQUEINDEX_INSERT ID = %s\n", id)
 		}
 	}()
 
