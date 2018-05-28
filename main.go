@@ -45,6 +45,7 @@ func main() {
 
 	ts := NewTweetStore(tc, sc)
 	tcs := NewTweetCompositeKeyStore(tc, sc)
+	ths := NewTweetHashKeyStore(tc, sc)
 
 	endCh := make(chan error)
 	go func() {
@@ -52,7 +53,7 @@ func main() {
 			ctx := context.Background()
 			id := uuid.New().String()
 			if err := ts.Insert(ctx, &Tweet{
-				ID:         uuid.New().String(),
+				ID:         id,
 				Author:     getAuthor(),
 				Content:    uuid.New().String(),
 				Favos:      getAuthors(),
@@ -72,7 +73,7 @@ func main() {
 			ctx := context.Background()
 			id := uuid.New().String()
 			tweet := &TweetCompositeKey{
-				ID:         uuid.New().String(),
+				ID:         id,
 				Author:     getAuthor(),
 				Content:    uuid.New().String(),
 				Favos:      getAuthors(),
@@ -85,6 +86,28 @@ func main() {
 				endCh <- err
 			}
 			fmt.Printf("TWEET_COMPOSITEKEY_INSERT ID = %s, Author = %s\n", id, tweet.Author)
+		}
+	}()
+
+	go func() {
+		for {
+			ctx := context.Background()
+			author := getAuthor()
+			id := ths.NewKey(uuid.New().String(), author)
+			tweet := &TweetHashKey{
+				ID:         id,
+				Author:     getAuthor(),
+				Content:    uuid.New().String(),
+				Favos:      getAuthors(),
+				Sort:       rand.Int(),
+				CreatedAt:  time.Now(),
+				UpdatedAt:  time.Now(),
+				CommitedAt: spanner.CommitTimestamp,
+			}
+			if err := ths.Insert(ctx, tweet); err != nil {
+				endCh <- err
+			}
+			fmt.Printf("TWEET_HASHKEY_INSERT ID = %s\n", id)
 		}
 	}()
 
