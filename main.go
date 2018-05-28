@@ -44,6 +44,7 @@ func main() {
 	}
 
 	ts := NewTweetStore(tc, sc)
+	tcs := NewTweetCompositeKeyStore(tc, sc)
 
 	endCh := make(chan error)
 	go func() {
@@ -63,6 +64,27 @@ func main() {
 				endCh <- err
 			}
 			fmt.Printf("TWEET_INSERT ID = %s\n", id)
+		}
+	}()
+
+	go func() {
+		for {
+			ctx := context.Background()
+			id := uuid.New().String()
+			tweet := &TweetCompositeKey{
+				ID:         uuid.New().String(),
+				Author:     getAuthor(),
+				Content:    uuid.New().String(),
+				Favos:      getAuthors(),
+				Sort:       rand.Int(),
+				CreatedAt:  time.Now(),
+				UpdatedAt:  time.Now(),
+				CommitedAt: spanner.CommitTimestamp,
+			}
+			if err := tcs.Insert(ctx, tweet); err != nil {
+				endCh <- err
+			}
+			fmt.Printf("TWEET_COMPOSITEKEY_INSERT ID = %s, Author = %s\n", id, tweet.Author)
 		}
 	}()
 
