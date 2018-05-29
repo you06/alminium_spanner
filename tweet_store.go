@@ -17,6 +17,7 @@ type TweetStore interface {
 	Insert(ctx context.Context, tweet *Tweet) error
 	Get(ctx context.Context, key spanner.Key) (*Tweet, error)
 	Query(ctx context.Context, limit int) ([]*Tweet, error)
+	QueryResultStruct(ctx context.Context) ([]*TweetIDAndAuthor, error)
 }
 
 var tweetStore TweetStore
@@ -122,4 +123,40 @@ func (s *defaultTweetStore) Query(ctx context.Context, limit int) ([]*Tweet, err
 	}
 
 	return tweets, nil
+}
+
+// TweetIDAndAuthor is StructのResponseの確認用に作ったStruct
+type TweetIDAndAuthor struct {
+	ID     string `spanner:"Id"`
+	Author string
+}
+
+// QueryResultStruct is StructをResultで返すQueryのサンプル
+func (s *defaultTweetStore) QueryResultStruct(ctx context.Context) ([]*TweetIDAndAuthor, error) {
+	ts := s.tc.NewSpan("/tweet/queryResultStruct")
+	defer ts.Finish()
+
+	iter := s.sc.Single().Query(ctx, spanner.NewStatement("SELECT ARRAY(SELECT STRUCT(Id, Author)) As IdWithAuthor FROM Tweet LIMIT 10;"))
+	defer iter.Stop()
+
+	type Result struct {
+		IDWithAuthor []*TweetIDAndAuthor `spanner:"IdWithAuthor"`
+	}
+
+	ias := []*TweetIDAndAuthor{}
+	for {
+		row, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		var result Result
+		row.ToStruct(&result)
+		ias = append(ias, result.IDWithAuthor[0])
+	}
+
+	return ias, nil
 }

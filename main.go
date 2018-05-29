@@ -153,6 +153,19 @@ func main() {
 		}
 	}()
 
+	go func() {
+		for {
+			ctx := context.Background()
+			l, err := ts.QueryResultStruct(ctx)
+			if err != nil {
+				endCh <- err
+			}
+			for _, v := range l {
+				fmt.Printf("TWEET_ID_AUTHOR = %+v\n", v)
+			}
+		}
+	}()
+
 	err = <-endCh
 	fmt.Printf("%+v", err)
 }
