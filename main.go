@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"hash/crc32"
 	"math/rand"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,8 +30,21 @@ func main() {
 
 	runWorks := os.Getenv("RUN_WORKS")
 	fmt.Printf("Env RUN_WORKS:%s\n", runWorks)
-
 	wm := newWorkManager(runWorks)
+
+	benchmarkTableName := os.Getenv("BENCHMARK_TABLE_NAME")
+	fmt.Printf("Env BENCHMARK_TABLE_NAME:%s\n", benchmarkTableName)
+
+	benchmarkCountParam := os.Getenv("BENCHMARK_COUNT")
+	fmt.Printf("Env BENCHMARK_COUNT:%s\n", benchmarkCountParam)
+	var benchmarkCount int
+	var err error
+	if benchmarkCountParam != "" {
+		benchmarkCount, err = strconv.Atoi(benchmarkCountParam)
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	// Profiler initialization, best done as early as possible.
 	if err := profiler.Start(profiler.Config{ProjectID: stackdriverProject, Service: "alminium_spanner", ServiceVersion: "0.0.1"}); err != nil {
@@ -53,9 +69,13 @@ func main() {
 	tcs := NewTweetCompositeKeyStore(tc, sc)
 	ths := NewTweetHashKeyStore(tc, sc)
 	tus := NewTweetUniqueIndexStore(tc, sc)
+	tbs := NewTweetBenchmarkStore(tc, sc, benchmarkTableName)
 
 	endCh := make(chan error)
 
+	if wm.isRunWork("InsertBenchmarkTweet") && benchmarkCount > 0 {
+		goInsertBenchmarkTweet(tbs, benchmarkCount, endCh)
+	}
 	if wm.isRunWork("InsertTweet") {
 		goInsertTweet(ts, endCh)
 	}
@@ -135,6 +155,41 @@ func (m *workManager) isRunWork(work string) bool {
 		}
 	}
 	return false
+}
+
+func goInsertBenchmarkTweet(tbs TweetBenchmarkStore, count int, endCh chan<- error) {
+	go func() {
+		ts := []*TweetBenchmark{}
+		for i := 0; i < count; i++ {
+			now := time.Now()
+			shardId := crc32.ChecksumIEEE([]byte(now.String())) % 255
+			ctx := context.Background()
+			id := uuid.New().String()
+			t := &TweetBenchmark{
+				ID:             id,
+				Author:         getAuthor(),
+				Content:        uuid.New().String(),
+				Favos:          getAuthors(),
+				Sort:           rand.Int(),
+				CreatedAt:      now,
+				UpdatedAt:      now,
+				CommitedAt:     spanner.CommitTimestamp,
+				ShardCreatedAt: int(shardId),
+			}
+			ts = append(ts, t)
+			if len(ts) >= 1000 {
+				if err := tbs.Insert(ctx, ts); err != nil {
+					endCh <- err
+				}
+				ts = []*TweetBenchmark{}
+			}
+
+			if i%1000 == 0 {
+				fmt.Printf("TWEET_BENCHMARK_INSERT INDEX = %d, ID = %s\n", i, id)
+			}
+		}
+		endCh <- errors.New("DONE")
+	}()
 }
 
 func goInsertTweet(ts TweetStore, endCh chan<- error) {
