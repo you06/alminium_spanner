@@ -9,10 +9,10 @@ import (
 
 	"cloud.google.com/go/profiler"
 	"cloud.google.com/go/spanner"
-	"cloud.google.com/go/trace"
+	"contrib.go.opencensus.io/exporter/stackdriver"
 	"github.com/google/uuid"
+	"go.opencensus.io/trace"
 	"google.golang.org/api/option"
-	"google.golang.org/grpc"
 )
 
 func main() {
@@ -28,25 +28,25 @@ func main() {
 	if err := profiler.Start(profiler.Config{ProjectID: stackdriverProject, Service: "alminium_spanner", ServiceVersion: "0.0.1"}); err != nil {
 		panic(err)
 	}
+	exporter, err := stackdriver.NewExporter(stackdriver.Options{
+		ProjectID: stackdriverProject,
+	})
+	if err != nil {
+		panic(err)
+	}
+	trace.RegisterExporter(exporter)
 
 	ctx := context.Background()
 
-	tc, err := trace.NewClient(ctx, stackdriverProject)
-	if err != nil {
-		panic(err)
-	}
-	do := grpc.WithUnaryInterceptor(tc.GRPCClientInterceptor())
-	o := option.WithGRPCDialOption(do)
-
-	sc, err := createClient(ctx, spannerDatabase, o)
+	sc, err := createClient(ctx, spannerDatabase)
 	if err != nil {
 		panic(err)
 	}
 
-	ts := NewTweetStore(tc, sc)
-	tcs := NewTweetCompositeKeyStore(tc, sc)
-	ths := NewTweetHashKeyStore(tc, sc)
-	tus := NewTweetUniqueIndexStore(tc, sc)
+	ts := NewTweetStore(sc)
+	tcs := NewTweetCompositeKeyStore(sc)
+	ths := NewTweetHashKeyStore(sc)
+	tus := NewTweetUniqueIndexStore(sc)
 
 	endCh := make(chan error)
 	go func() {

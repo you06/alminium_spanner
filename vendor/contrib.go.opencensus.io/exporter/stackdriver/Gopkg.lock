@@ -4,25 +4,13 @@
 [[projects]]
   name = "cloud.google.com/go"
   packages = [
-    "civil",
     "compute/metadata",
-    "internal/atomiccache",
-    "internal/fields",
-    "internal/protostruct",
     "internal/version",
     "monitoring/apiv3",
-    "profiler",
-    "spanner",
     "trace/apiv2"
   ]
   revision = "0fd7230b2a7505833d5f69b75cbd6c9582401479"
   version = "v0.23.0"
-
-[[projects]]
-  name = "contrib.go.opencensus.io/exporter/stackdriver"
-  packages = ["."]
-  revision = "b98abe41e381c878749ef1aa9eb0798616afbb43"
-  version = "v0.2.0"
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -33,7 +21,6 @@
     "ptypes/any",
     "ptypes/duration",
     "ptypes/empty",
-    "ptypes/struct",
     "ptypes/timestamp",
     "ptypes/wrappers"
   ]
@@ -41,28 +28,10 @@
   version = "v1.1.0"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/google/pprof"
-  packages = ["profile"]
-  revision = "4d67f66d7c9469639518a80f378434bb7e9156b7"
-
-[[projects]]
-  name = "github.com/google/uuid"
-  packages = ["."]
-  revision = "064e2069ce9c359c118179501254f67d7d37ba24"
-  version = "0.2"
-
-[[projects]]
   name = "github.com/googleapis/gax-go"
   packages = ["."]
   revision = "317e0006254c44a0ac427cc52a0e083ff0b9622f"
   version = "v2.0.0"
-
-[[projects]]
-  name = "github.com/pkg/errors"
-  packages = ["."]
-  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
-  version = "v0.8.0"
 
 [[projects]]
   name = "go.opencensus.io"
@@ -97,7 +66,7 @@
     "internal/timeseries",
     "trace"
   ]
-  revision = "57065200b4b034a1c8ad54ff77069408c2218ae6"
+  revision = "2491c5de3490fced2f6cff376127c667efeed857"
 
 [[projects]]
   branch = "master"
@@ -151,7 +120,7 @@
     "transport/grpc",
     "transport/http"
   ]
-  revision = "4f7dd2b006a4ffd9fd683c1c734d2fe91ca0ea1c"
+  revision = "aedc137bffcaca05f836e35c6d182fcb7a68b1c0"
 
 [[projects]]
   name = "google.golang.org/appengine"
@@ -181,12 +150,10 @@
     "googleapis/api/label",
     "googleapis/api/metric",
     "googleapis/api/monitoredres",
-    "googleapis/devtools/cloudprofiler/v2",
     "googleapis/devtools/cloudtrace/v2",
     "googleapis/monitoring/v3",
-    "googleapis/rpc/errdetails",
+    "googleapis/rpc/code",
     "googleapis/rpc/status",
-    "googleapis/spanner/v1",
     "protobuf/field_mask"
   ]
   revision = "11a468237815f3a3ddf9f7c6e8b6b3b382a24d15"
@@ -226,6 +193,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "8ad1a0b8aee2a3ebccea5d3da786290c0d019fd6ab8978c0f8fe2692719daadb"
+  inputs-digest = "3038cb48bb2bce5c8567df94e51eee5f2d59499b0add7cc6278eaf2ed53d4c7b"
   solver-name = "gps-cdcl"
   solver-version = 1

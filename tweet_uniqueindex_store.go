@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
-	"cloud.google.com/go/trace"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"go.opencensus.io/trace"
 	"google.golang.org/api/iterator"
 )
 
@@ -22,10 +22,9 @@ type TweetUniqueIndexStore interface {
 var tweetUniqueIndexStore TweetUniqueIndexStore
 
 // NewTweetUniqueIndexStore is New TweetUniqueIndexStore
-func NewTweetUniqueIndexStore(tc *trace.Client, sc *spanner.Client) TweetUniqueIndexStore {
+func NewTweetUniqueIndexStore(sc *spanner.Client) TweetUniqueIndexStore {
 	if tweetUniqueIndexStore == nil {
 		tweetUniqueIndexStore = &defaultTweetUniqueIndexStore{
-			tc: tc,
 			sc: sc,
 		}
 	}
@@ -46,7 +45,6 @@ type TweetUniqueIndex struct {
 }
 
 type defaultTweetUniqueIndexStore struct {
-	tc *trace.Client
 	sc *spanner.Client
 }
 
@@ -57,8 +55,8 @@ func (s *defaultTweetUniqueIndexStore) TableName() string {
 
 // Insert is Insert to Tweet
 func (s *defaultTweetUniqueIndexStore) Insert(ctx context.Context, tweet *TweetUniqueIndex) error {
-	ts := s.tc.NewSpan("/tweetUniqueIndex/insert")
-	defer ts.Finish()
+	ctx, span := trace.StartSpan(ctx, "/tweetUniqueIndex/insert")
+	defer span.End()
 
 	m, err := spanner.InsertStruct(s.TableName(), tweet)
 	if err != nil {
@@ -82,8 +80,8 @@ func (s *defaultTweetUniqueIndexStore) Insert(ctx context.Context, tweet *TweetU
 }
 
 func (s defaultTweetUniqueIndexStore) Get(ctx context.Context, key spanner.Key) (*TweetUniqueIndex, error) {
-	ts := s.tc.NewSpan("/tweetUniqueIndex/get")
-	defer ts.Finish()
+	ctx, span := trace.StartSpan(ctx, "/tweetUniqueIndex/get")
+	defer span.End()
 
 	row, err := s.sc.Single().ReadRow(ctx, s.TableName(), key, []string{"Author", "CommitedAt", "Content", "CreatedAt", "Favos", "Sort", "UpdatedAt"})
 	if err != nil {
@@ -96,8 +94,8 @@ func (s defaultTweetUniqueIndexStore) Get(ctx context.Context, key spanner.Key) 
 
 // Query is Tweet を sort_ascで取得する
 func (s *defaultTweetUniqueIndexStore) Query(ctx context.Context, limit int) ([]*TweetUniqueIndex, error) {
-	ts := s.tc.NewSpan("/tweetUniqueIndex/query")
-	defer ts.Finish()
+	ctx, span := trace.StartSpan(ctx, "/tweetUniqueIndex/query")
+	defer span.End()
 
 	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "sort_asc", spanner.AllKeys(), []string{"Id", "Sort"})
 	defer iter.Stop()
