@@ -96,7 +96,7 @@ func (s *defaultTweetCompositeKeyStore) Query(ctx context.Context, limit int) ([
 	ctx, span := trace.StartSpan(ctx, "/tweetCompositeKey/query")
 	defer span.End()
 
-	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "sort_asc", spanner.AllKeys(), []string{"Id", "Sort"})
+	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "TweetSortAsc", spanner.AllKeys(), []string{"Id", "Sort"})
 	defer iter.Stop()
 
 	count := 0
