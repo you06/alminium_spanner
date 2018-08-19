@@ -162,7 +162,7 @@ func goInsertBenchmarkTweet(tbs TweetBenchmarkStore, count int, endCh chan<- err
 		ts := []*TweetBenchmark{}
 		for i := 0; i < count; i++ {
 			now := time.Now()
-			shardId := crc32.ChecksumIEEE([]byte(now.String())) % 255
+			shardId := crc32.ChecksumIEEE([]byte(now.String())) % 10
 			ctx := context.Background()
 			id := uuid.New().String()
 			t := &TweetBenchmark{
