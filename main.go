@@ -9,10 +9,12 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/profiler"
 	"cloud.google.com/go/spanner"
+	sadmin "cloud.google.com/go/spanner/admin/database/apiv1"
 	"cloud.google.com/go/trace"
 	"github.com/google/uuid"
 	"google.golang.org/api/option"
@@ -20,7 +22,11 @@ import (
 )
 
 func main() {
-	fmt.Printf("Env HELLO:%s\n", os.Getenv("HELLO"))
+	spannerProject := os.Getenv("SPANNER_PROJECT")
+	fmt.Printf("Env SPANNER_PROJECT:%s\n", spannerProject)
+
+	spannerInstance := os.Getenv("SPANNER_INSTANCE")
+	fmt.Printf("Env SPANNER_INSTANCE:%s\n", spannerInstance)
 
 	spannerDatabase := os.Getenv("SPANNER_DATABASE")
 	fmt.Printf("Env SPANNER_DATABASE:%s\n", spannerDatabase)
@@ -32,6 +38,9 @@ func main() {
 	fmt.Printf("Env RUN_WORKS:%s\n", runWorks)
 	wm := newWorkManager(runWorks)
 
+	benchmarkDatabaseName := os.Getenv("BENCHMARK_DATABASE_NAME")
+	fmt.Printf("Env BENCHMARK_DATABASE_NAME:%s\n", benchmarkDatabaseName)
+
 	benchmarkTableName := os.Getenv("BENCHMARK_TABLE_NAME")
 	fmt.Printf("Env BENCHMARK_TABLE_NAME:%s\n", benchmarkTableName)
 
@@ -41,6 +50,36 @@ func main() {
 	var err error
 	if benchmarkCountParam != "" {
 		benchmarkCount, err = strconv.Atoi(benchmarkCountParam)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	benchmarkItemCountParam := os.Getenv("BENCHMARK_ITEM_COUNT")
+	fmt.Printf("Env BENCHMARK_ITEM_COUNT:%s\n", benchmarkItemCountParam)
+	var benchmarkItemCount int
+	if benchmarkItemCountParam != "" {
+		benchmarkItemCount, err = strconv.Atoi(benchmarkItemCountParam)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	benchmarkUserCountParam := os.Getenv("BENCHMARK_USER_COUNT")
+	fmt.Printf("Env BENCHMARK_USER_COUNT:%s\n", benchmarkUserCountParam)
+	var benchmarkUserCount int
+	if benchmarkUserCountParam != "" {
+		benchmarkUserCount, err = strconv.Atoi(benchmarkUserCountParam)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	benchmarkOrderCountParam := os.Getenv("BENCHMARK_ORDER_COUNT")
+	fmt.Printf("Env BENCHMARK_ORDER_COUNT:%s\n", benchmarkOrderCountParam)
+	var benchmarkOrderCount int
+	if benchmarkOrderCountParam != "" {
+		benchmarkOrderCount, err = strconv.Atoi(benchmarkOrderCountParam)
 		if err != nil {
 			panic(err)
 		}
@@ -94,6 +133,27 @@ func main() {
 	if wm.isRunWork("ListTweetResultStruct") {
 		goListTweetResultStruct(ts, endCh)
 	}
+	if wm.isRunWork("InsertBenchmarkJoinData") {
+		sc, err := createClient(ctx, fmt.Sprintf("projects/%s/instances/%s/databases/%s", spannerProject, spannerInstance, benchmarkDatabaseName), o)
+		if err != nil {
+			panic(err)
+		}
+
+		sac, err := createDatabaseAdminClient(ctx)
+		if err != nil {
+			panic(err)
+		}
+		jbac := NewJoinBenchmarkAdminClient(sac)
+
+		jbs := NewJoinBenchmarkStore(sc, benchmarkItemCount, benchmarkUserCount, benchmarkOrderCount)
+		if err := jbac.CreateJoinBenchmarkTables(ctx, spannerProject, spannerInstance, benchmarkDatabaseName, jbs.ItemTableName(), jbs.UserTableName(), jbs.OrderTableName(), jbs.OrderTableDetailTableName()); err != nil {
+			panic(err)
+		}
+
+		go func() {
+			goInsertBenchmarkJoinData(jbs, benchmarkItemCount, benchmarkUserCount, benchmarkOrderCount, endCh)
+		}()
+	}
 
 	err = <-endCh
 	fmt.Printf("%+v", err)
@@ -106,6 +166,15 @@ func createClient(ctx context.Context, db string, o ...option.ClientOption) (*sp
 	}
 
 	return dataClient, nil
+}
+
+func createDatabaseAdminClient(ctx context.Context, o ...option.ClientOption) (*sadmin.DatabaseAdminClient, error) {
+	c, err := sadmin.NewDatabaseAdminClient(ctx, o...)
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }
 
 func getAuthor() string {
@@ -190,6 +259,166 @@ func goInsertBenchmarkTweet(tbs TweetBenchmarkStore, count int, endCh chan<- err
 		}
 		endCh <- errors.New("DONE")
 	}()
+}
+
+func goInsertBenchmarkJoinData(jbs JoinBenchmarkStore, countItems int, countUsers int, countOrders int, endCh chan<- error) {
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		rows := []*Item{}
+		for i := 0; i < countItems; i++ {
+			now := time.Now()
+			shardId := crc32.ChecksumIEEE([]byte(now.String())) % 10
+			ctx := context.Background()
+			id := uuid.New().String()
+			item := &Item{
+				ID:             id,
+				Name:           id,
+				Price:          100 + rand.Intn(10000),
+				CreatedAt:      now,
+				UpdatedAt:      now,
+				CommitedAt:     spanner.CommitTimestamp,
+				ShardCreatedAt: int(shardId),
+			}
+			rows = append(rows, item)
+			if len(rows) >= 1000 {
+				if err := jbs.InsertItem(ctx, rows); err != nil {
+					fmt.Printf("%+v", err)
+					return
+				}
+				fmt.Printf("JOIN_ITEM_INSERT INDEX = %d, ID = %s\n", i, id)
+				rows = []*Item{}
+			}
+		}
+		fmt.Printf("DONE ITEM_INSERT\n")
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		rows := []*User{}
+		for i := 0; i < countUsers; i++ {
+			now := time.Now()
+			shardId := crc32.ChecksumIEEE([]byte(now.String())) % 10
+			ctx := context.Background()
+			id := uuid.New().String()
+			user := &User{
+				ID:             id,
+				Name:           id,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+				CommitedAt:     spanner.CommitTimestamp,
+				ShardCreatedAt: int(shardId),
+			}
+			rows = append(rows, user)
+			if len(rows) >= 1000 {
+				if err := jbs.InsertUser(ctx, rows); err != nil {
+					fmt.Printf("%+v", err)
+					return
+				}
+				fmt.Printf("JOIN_USER_INSERT INDEX = %d, ID = %s\n", i, id)
+				rows = []*User{}
+			}
+		}
+		fmt.Printf("DONE USER_INSERT\n")
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		orders := []*Order{}
+		orderDetails := []*OrderDetail{}
+		users := []*User{}
+		items := []*Item{}
+
+		for {
+			time.Sleep(10 * time.Second)
+
+			ctx := context.Background()
+			var err error
+			users, err = jbs.SelectSampleUsers(ctx)
+			if err != nil {
+				fmt.Printf("%+v", err)
+				return
+			}
+			items, err = jbs.SelectSampleItems(ctx)
+			if err != nil {
+				fmt.Printf("%+v", err)
+				return
+			}
+			if len(users) > 0 && len(items) > 0 {
+				break
+			}
+		}
+		for i := 0; i < countOrders; i++ {
+			now := time.Now()
+			shardId := crc32.ChecksumIEEE([]byte(now.String())) % 10
+			ctx := context.Background()
+			oid := uuid.New().String()
+
+			detailCount := 1 + rand.Intn(25)
+			orderPrice := 0
+			for dc := 0; dc < detailCount; dc++ {
+				did := uuid.New().String()
+				itemId := rand.Intn(len(items) - 1)
+				orderDetail := &OrderDetail{
+					ID:             did,
+					OrderID:        oid,
+					ItemID:         items[itemId].ID,
+					Price:          items[itemId].Price,
+					Number:         1 + rand.Intn(10),
+					CreatedAt:      now,
+					UpdatedAt:      now,
+					CommitedAt:     spanner.CommitTimestamp,
+					ShardCreatedAt: int(shardId),
+				}
+				orderPrice += orderDetail.Price * orderDetail.Number
+				orderDetails = append(orderDetails, orderDetail)
+			}
+
+			order := &Order{
+				ID:             oid,
+				UserID:         users[rand.Intn(len(users)-1)].ID,
+				Price:          orderPrice,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+				CommitedAt:     spanner.CommitTimestamp,
+				ShardCreatedAt: int(shardId),
+			}
+			orders = append(orders, order)
+
+			if len(orders) >= 100 {
+				fmt.Printf("order.len:%d, orderDetail.len:%d\n", len(orders), len(orderDetails))
+				if err := jbs.InsertOrder(ctx, orders, orderDetails); err != nil {
+					fmt.Printf("%+v", err)
+					return
+				}
+				fmt.Printf("JOIN_ORDER_INSERT INDEX = %d\n", i)
+				orders = []*Order{}
+				orderDetails = []*OrderDetail{}
+			}
+			if i%100000 == 0 {
+				var err error
+				users, err = jbs.SelectSampleUsers(ctx)
+				if err != nil {
+					fmt.Printf("%+v", err)
+					return
+				}
+				items, err = jbs.SelectSampleItems(ctx)
+				if err != nil {
+					fmt.Printf("%+v", err)
+					return
+				}
+			}
+		}
+		fmt.Printf("DONE ORDER_INSERT\n")
+	}()
+
+	wg.Wait()
+	fmt.Printf("DONE BENCHMARK_JOIN_INSERT\n")
+	endCh <- errors.New("DONE")
 }
 
 func goInsertTweet(ts TweetStore, endCh chan<- error) {

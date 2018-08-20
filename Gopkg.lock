@@ -11,8 +11,11 @@
     "internal/protostruct",
     "internal/tracecontext",
     "internal/version",
+    "longrunning",
+    "longrunning/autogen",
     "profiler",
     "spanner",
+    "spanner/admin/database/apiv1",
     "trace"
   ]
   revision = "0fd7230b2a7505833d5f69b75cbd6c9582401479"
@@ -107,10 +110,7 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/sync"
-  packages = [
-    "errgroup",
-    "semaphore"
-  ]
+  packages = ["semaphore"]
   revision = "1d60e4601c6fd243af51cc01ddf169918a5407ca"
 
 [[projects]]
@@ -153,6 +153,7 @@
     "iterator",
     "option",
     "support/bundler",
+    "transport",
     "transport/grpc",
     "transport/http"
   ]
@@ -183,8 +184,11 @@
   packages = [
     "googleapis/api/annotations",
     "googleapis/devtools/cloudprofiler/v2",
+    "googleapis/iam/v1",
+    "googleapis/longrunning",
     "googleapis/rpc/errdetails",
     "googleapis/rpc/status",
+    "googleapis/spanner/admin/database/v1",
     "googleapis/spanner/v1"
   ]
   revision = "11a468237815f3a3ddf9f7c6e8b6b3b382a24d15"
@@ -224,6 +228,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e376881315adfab4c532acef5198da17234c0c169d576f246c592206612fb195"
+  inputs-digest = "82b94b2d5f6e1b23f2bcfc75a406eb0f46a24bbfa7ddd7f128fea2db35b9a8e8"
   solver-name = "gps-cdcl"
   solver-version = 1
