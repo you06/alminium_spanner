@@ -3,9 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"hash/crc32"
+	"math/rand"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/spanner"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 )
@@ -38,19 +42,180 @@ func NewJoinBenchmarkStore(sc *spanner.Client, itemRows int, userRows int, order
 	return joinBenchmarkStore
 }
 
+func GoInsertBenchmarkJoinData(jbs JoinBenchmarkStore, countItems int, countUsers int, countOrders int, endCh chan<- error) {
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		rows := []*Item{}
+		for i := 0; i < countItems; i++ {
+			now := time.Now()
+			shardId := crc32.ChecksumIEEE([]byte(now.String())) % 10
+			ctx := context.Background()
+			id := uuid.New().String()
+			item := &Item{
+				ItemID:         id,
+				CategoryID:     GetCategoryId(),
+				Name:           id,
+				Price:          100 + rand.Int63n(10000),
+				CreatedAt:      now,
+				UpdatedAt:      now,
+				CommitedAt:     spanner.CommitTimestamp,
+				ShardCreatedAt: int64(shardId),
+			}
+			rows = append(rows, item)
+			if len(rows) >= 1000 {
+				if err := jbs.InsertItem(ctx, rows); err != nil {
+					fmt.Printf("%+v", err)
+					return
+				}
+				fmt.Printf("JOIN_ITEM_INSERT INDEX = %d, ID = %s\n", i, id)
+				rows = []*Item{}
+			}
+		}
+		fmt.Printf("DONE ITEM_INSERT\n")
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		rows := []*User{}
+		for i := 0; i < countUsers; i++ {
+			now := time.Now()
+			shardId := crc32.ChecksumIEEE([]byte(now.String())) % 10
+			ctx := context.Background()
+			id := uuid.New().String()
+			user := &User{
+				UserID:         id,
+				Name:           id,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+				CommitedAt:     spanner.CommitTimestamp,
+				ShardCreatedAt: int(shardId),
+			}
+			rows = append(rows, user)
+			if len(rows) >= 1000 {
+				if err := jbs.InsertUser(ctx, rows); err != nil {
+					fmt.Printf("%+v", err)
+					return
+				}
+				fmt.Printf("JOIN_USER_INSERT INDEX = %d, ID = %s\n", i, id)
+				rows = []*User{}
+			}
+		}
+		fmt.Printf("DONE USER_INSERT\n")
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		orders := []*Order{}
+		orderDetails := []*OrderDetail{}
+		users := []*User{}
+		items := []*Item{}
+
+		for {
+			time.Sleep(10 * time.Second)
+
+			ctx := context.Background()
+			var err error
+			users, err = jbs.SelectSampleUsers(ctx)
+			if err != nil {
+				fmt.Printf("%+v", err)
+				return
+			}
+			items, err = jbs.SelectSampleItems(ctx)
+			if err != nil {
+				fmt.Printf("%+v", err)
+				return
+			}
+			if len(users) > 0 && len(items) > 0 {
+				break
+			}
+		}
+		for i := 0; i < countOrders; i++ {
+			now := time.Now()
+			shardId := crc32.ChecksumIEEE([]byte(now.String())) % 10
+			ctx := context.Background()
+			oid := uuid.New().String()
+
+			detailCount := 1 + rand.Intn(25)
+			orderPrice := int64(0)
+			for dc := 0; dc < detailCount; dc++ {
+				did := uuid.New().String()
+				itemId := rand.Intn(len(items) - 1)
+				orderDetail := &OrderDetail{
+					OrderDetailID:  did,
+					OrderID:        oid,
+					ItemID:         items[itemId].ItemID,
+					Price:          items[itemId].Price,
+					Number:         1 + rand.Int63n(10),
+					CreatedAt:      now,
+					UpdatedAt:      now,
+					CommitedAt:     spanner.CommitTimestamp,
+					ShardCreatedAt: int(shardId),
+				}
+				orderPrice += orderDetail.Price * orderDetail.Number
+				orderDetails = append(orderDetails, orderDetail)
+			}
+
+			order := &Order{
+				OrderID:        oid,
+				UserID:         users[rand.Intn(len(users)-1)].UserID,
+				Price:          orderPrice,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+				CommitedAt:     spanner.CommitTimestamp,
+				ShardCreatedAt: int(shardId),
+			}
+			orders = append(orders, order)
+
+			if len(orders) >= 100 {
+				fmt.Printf("order.len:%d, orderDetail.len:%d\n", len(orders), len(orderDetails))
+				if err := jbs.InsertOrder(ctx, orders, orderDetails); err != nil {
+					fmt.Printf("%+v", err)
+					return
+				}
+				fmt.Printf("JOIN_ORDER_INSERT INDEX = %d\n", i)
+				orders = []*Order{}
+				orderDetails = []*OrderDetail{}
+			}
+			if i%100000 == 0 {
+				var err error
+				users, err = jbs.SelectSampleUsers(ctx)
+				if err != nil {
+					fmt.Printf("%+v", err)
+					return
+				}
+				items, err = jbs.SelectSampleItems(ctx)
+				if err != nil {
+					fmt.Printf("%+v", err)
+					return
+				}
+			}
+		}
+		fmt.Printf("DONE ORDER_INSERT\n")
+	}()
+
+	wg.Wait()
+	fmt.Printf("DONE BENCHMARK_JOIN_INSERT\n")
+	endCh <- errors.New("DONE")
+}
+
 type Item struct {
-	ID             string `spanner:"Id"`
+	ItemID         string `spanner:"ItemId"`
 	CategoryID     string `spanner:"CategoryId"`
 	Name           string
-	Price          int
+	Price          int64
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	CommitedAt     time.Time
-	ShardCreatedAt int
+	ShardCreatedAt int64
 }
 
 type User struct {
-	ID             string `spanner:"Id"`
+	UserID         string `spanner:"UserId"`
 	Name           string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
@@ -59,9 +224,9 @@ type User struct {
 }
 
 type Order struct {
-	ID             string `spanner:"Id"`
+	OrderID        string `spanner:"OrderId"`
 	UserID         string `spanner:"UserId"`
-	Price          int
+	Price          int64
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	CommitedAt     time.Time
@@ -69,11 +234,11 @@ type Order struct {
 }
 
 type OrderDetail struct {
-	ID             string `spanner:"Id"`
+	OrderDetailID  string `spanner:"OrderDetailId"`
 	OrderID        string `spanner:"OrderId"`
 	ItemID         string `spanner:"ItemId"`
-	Price          int
-	Number         int
+	Price          int64
+	Number         int64
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	CommitedAt     time.Time
@@ -185,6 +350,7 @@ func (s *defaultJoinBenchmarkStore) SelectSampleItems(ctx context.Context) ([]*I
 
 		var item Item
 		row.ToStruct(&item)
+		fmt.Printf("%+v\n", item)
 		items = append(items, &item)
 	}
 
@@ -229,4 +395,9 @@ func ConvertKMGText(v int) string {
 	default:
 		return fmt.Sprintf("%d", v)
 	}
+}
+
+func GetCategoryId() string {
+	c := []string{"PaaS", "IaaS", "mBaaS", "FaaS", "DBaaS"}
+	return c[rand.Intn(len(c))]
 }
