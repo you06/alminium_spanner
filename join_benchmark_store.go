@@ -11,6 +11,7 @@ import (
 	"cloud.google.com/go/spanner"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"go.opencensus.io/trace"
 	"google.golang.org/api/iterator"
 )
 
@@ -48,38 +49,6 @@ func GoInsertBenchmarkJoinData(jbs JoinBenchmarkStore, countItems int, countUser
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		rows := []*Item{}
-		for i := 0; i < countItems; i++ {
-			now := time.Now()
-			shardId := crc32.ChecksumIEEE([]byte(now.String())) % 10
-			ctx := context.Background()
-			id := uuid.New().String()
-			item := &Item{
-				ItemID:         id,
-				CategoryID:     GetCategoryId(),
-				Name:           id,
-				Price:          100 + rand.Int63n(10000),
-				CreatedAt:      now,
-				UpdatedAt:      now,
-				CommitedAt:     spanner.CommitTimestamp,
-				ShardCreatedAt: int64(shardId),
-			}
-			rows = append(rows, item)
-			if len(rows) >= 1000 {
-				if err := jbs.InsertItem(ctx, rows); err != nil {
-					fmt.Printf("%+v", err)
-					return
-				}
-				fmt.Printf("JOIN_ITEM_INSERT INDEX = %d, ID = %s\n", i, id)
-				rows = []*Item{}
-			}
-		}
-		fmt.Printf("DONE ITEM_INSERT\n")
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
 		rows := []*User{}
 		for i := 0; i < countUsers; i++ {
 			now := time.Now()
@@ -105,6 +74,63 @@ func GoInsertBenchmarkJoinData(jbs JoinBenchmarkStore, countItems int, countUser
 			}
 		}
 		fmt.Printf("DONE USER_INSERT\n")
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		users := []*User{}
+		for {
+			time.Sleep(10 * time.Second)
+
+			ctx := context.Background()
+			var err error
+			users, err = jbs.SelectSampleUsers(ctx)
+			if err != nil {
+				fmt.Printf("%+v", err)
+				return
+			}
+			if len(users) > 0 {
+				break
+			}
+		}
+
+		rows := []*Item{}
+		for i := 0; i < countItems; i++ {
+			favUserIds := []string{}
+			favUserNumber := rand.Intn(20)
+			for favUserIdCount := 0; favUserIdCount < favUserNumber; favUserIdCount++ {
+				userIndex := rand.Intn(len(users) - 1)
+				favUserIds = append(favUserIds, users[userIndex].UserID)
+			}
+
+			now := time.Now()
+			shardId := crc32.ChecksumIEEE([]byte(now.String())) % 10
+			ctx := context.Background()
+			id := uuid.New().String()
+			item := &Item{
+				ItemID:         id,
+				CategoryID:     GetCategoryId(),
+				Name:           id,
+				Price:          100 + rand.Int63n(10000),
+				FavUserIDs:     favUserIds,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+				CommitedAt:     spanner.CommitTimestamp,
+				ShardCreatedAt: int64(shardId),
+			}
+			rows = append(rows, item)
+			if len(rows) >= 1000 {
+				if err := jbs.InsertItem(ctx, rows); err != nil {
+					fmt.Printf("%+v", err)
+					return
+				}
+				fmt.Printf("JOIN_ITEM_INSERT INDEX = %d, ID = %s\n", i, id)
+				rows = []*Item{}
+			}
+		}
+		fmt.Printf("DONE ITEM_INSERT\n")
 	}()
 
 	wg.Add(1)
@@ -143,14 +169,23 @@ func GoInsertBenchmarkJoinData(jbs JoinBenchmarkStore, countItems int, countUser
 			detailCount := 1 + rand.Intn(25)
 			orderPrice := int64(0)
 			for dc := 0; dc < detailCount; dc++ {
+				favUserIds := []string{}
+				favUserNumber := rand.Intn(20)
+				for favUserIdCount := 0; favUserIdCount < favUserNumber; favUserIdCount++ {
+					userIndex := rand.Intn(len(users) - 1)
+					favUserIds = append(favUserIds, users[userIndex].UserID)
+				}
+
 				did := uuid.New().String()
-				itemId := rand.Intn(len(items) - 1)
+				itemIndex := rand.Intn(len(items) - 1)
 				orderDetail := &OrderDetail{
 					OrderDetailID:  did,
 					OrderID:        oid,
-					ItemID:         items[itemId].ItemID,
-					Price:          items[itemId].Price,
+					ItemID:         items[itemIndex].ItemID,
+					ItemCategoryID: items[itemIndex].CategoryID,
+					Price:          items[itemIndex].Price,
 					Number:         1 + rand.Int63n(10),
+					FavUserIDs:     favUserIds,
 					CreatedAt:      now,
 					UpdatedAt:      now,
 					CommitedAt:     spanner.CommitTimestamp,
@@ -171,7 +206,7 @@ func GoInsertBenchmarkJoinData(jbs JoinBenchmarkStore, countItems int, countUser
 			}
 			orders = append(orders, order)
 
-			if len(orders) >= 100 {
+			if len(orders) >= 50 {
 				fmt.Printf("order.len:%d, orderDetail.len:%d\n", len(orders), len(orderDetails))
 				if err := jbs.InsertOrder(ctx, orders, orderDetails); err != nil {
 					fmt.Printf("%+v", err)
@@ -208,6 +243,7 @@ type Item struct {
 	CategoryID     string `spanner:"CategoryId"`
 	Name           string
 	Price          int64
+	FavUserIDs     []string `spanner:"FavUserIds"`
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	CommitedAt     time.Time
@@ -237,8 +273,10 @@ type OrderDetail struct {
 	OrderDetailID  string `spanner:"OrderDetailId"`
 	OrderID        string `spanner:"OrderId"`
 	ItemID         string `spanner:"ItemId"`
+	ItemCategoryID string `spanner:"ItemCategoryId"`
 	Price          int64
 	Number         int64
+	FavUserIDs     []string `spanner:"FavUserIds"`
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	CommitedAt     time.Time
@@ -289,6 +327,9 @@ func (s *defaultJoinBenchmarkStore) InsertItem(ctx context.Context, items []*Ite
 }
 
 func (s *defaultJoinBenchmarkStore) InsertUser(ctx context.Context, users []*User) error {
+	ctx, span := trace.StartSpan(ctx, "/joinBenchmarkStore/user/insert")
+	defer span.End()
+
 	ms := []*spanner.Mutation{}
 
 	for _, user := range users {
@@ -308,6 +349,9 @@ func (s *defaultJoinBenchmarkStore) InsertUser(ctx context.Context, users []*Use
 }
 
 func (s *defaultJoinBenchmarkStore) InsertOrder(ctx context.Context, orders []*Order, orderDetails []*OrderDetail) error {
+	ctx, span := trace.StartSpan(ctx, "/joinBenchmarkStore/order/insert")
+	defer span.End()
+
 	ms := []*spanner.Mutation{}
 
 	for _, order := range orders {
@@ -334,6 +378,9 @@ func (s *defaultJoinBenchmarkStore) InsertOrder(ctx context.Context, orders []*O
 }
 
 func (s *defaultJoinBenchmarkStore) SelectSampleItems(ctx context.Context) ([]*Item, error) {
+	ctx, span := trace.StartSpan(ctx, "/joinBenchmarkStore/selectSampleItems")
+	defer span.End()
+
 	q := fmt.Sprintf("SELECT * FROM %s TABLESAMPLE RESERVOIR (1000 ROWS);", s.ItemTableName())
 	iter := s.sc.Single().Query(ctx, spanner.NewStatement(q))
 	defer iter.Stop()
@@ -358,6 +405,9 @@ func (s *defaultJoinBenchmarkStore) SelectSampleItems(ctx context.Context) ([]*I
 }
 
 func (s *defaultJoinBenchmarkStore) SelectSampleUsers(ctx context.Context) ([]*User, error) {
+	ctx, span := trace.StartSpan(ctx, "/joinBenchmarkStore/selectSampleUsers")
+	defer span.End()
+
 	q := fmt.Sprintf("SELECT * FROM %s TABLESAMPLE RESERVOIR (1000 ROWS);", s.UserTableName())
 	iter := s.sc.Single().Query(ctx, spanner.NewStatement(q))
 	defer iter.Stop()

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
-	"cloud.google.com/go/trace"
 	"github.com/pkg/errors"
 )
 
@@ -18,10 +17,9 @@ type TweetBenchmarkStore interface {
 var tweetBenchmarkStore TweetBenchmarkStore
 
 // NewTweetBenchmarkStore is New TweetBenchmarkStore
-func NewTweetBenchmarkStore(tc *trace.Client, sc *spanner.Client, tableName string) TweetBenchmarkStore {
+func NewTweetBenchmarkStore(sc *spanner.Client, tableName string) TweetBenchmarkStore {
 	if tweetBenchmarkStore == nil {
 		tweetBenchmarkStore = &defaultTweetBenchmarkStore{
-			tc:        tc,
 			sc:        sc,
 			tableName: tableName,
 		}
@@ -44,7 +42,6 @@ type TweetBenchmark struct {
 }
 
 type defaultTweetBenchmarkStore struct {
-	tc        *trace.Client
 	sc        *spanner.Client
 	tableName string
 }

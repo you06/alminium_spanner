@@ -14,19 +14,13 @@ import (
 	"cloud.google.com/go/profiler"
 	"cloud.google.com/go/spanner"
 	sadmin "cloud.google.com/go/spanner/admin/database/apiv1"
-	"cloud.google.com/go/trace"
+	"contrib.go.opencensus.io/exporter/stackdriver"
 	"github.com/google/uuid"
+	"go.opencensus.io/trace"
 	"google.golang.org/api/option"
-	"google.golang.org/grpc"
 )
 
 func main() {
-	spannerProject := os.Getenv("SPANNER_PROJECT")
-	fmt.Printf("Env SPANNER_PROJECT:%s\n", spannerProject)
-
-	spannerInstance := os.Getenv("SPANNER_INSTANCE")
-	fmt.Printf("Env SPANNER_INSTANCE:%s\n", spannerInstance)
-
 	spannerDatabase := os.Getenv("SPANNER_DATABASE")
 	fmt.Printf("Env SPANNER_DATABASE:%s\n", spannerDatabase)
 
@@ -36,9 +30,6 @@ func main() {
 	runWorks := os.Getenv("RUN_WORKS")
 	fmt.Printf("Env RUN_WORKS:%s\n", runWorks)
 	wm := newWorkManager(runWorks)
-
-	benchmarkDatabaseName := os.Getenv("BENCHMARK_DATABASE_NAME")
-	fmt.Printf("Env BENCHMARK_DATABASE_NAME:%s\n", benchmarkDatabaseName)
 
 	benchmarkTableName := os.Getenv("BENCHMARK_TABLE_NAME")
 	fmt.Printf("Env BENCHMARK_TABLE_NAME:%s\n", benchmarkTableName)
@@ -54,60 +45,33 @@ func main() {
 		}
 	}
 
-	benchmarkItemCountParam := os.Getenv("BENCHMARK_ITEM_COUNT")
-	fmt.Printf("Env BENCHMARK_ITEM_COUNT:%s\n", benchmarkItemCountParam)
-	var benchmarkItemCount int
-	if benchmarkItemCountParam != "" {
-		benchmarkItemCount, err = strconv.Atoi(benchmarkItemCountParam)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	benchmarkUserCountParam := os.Getenv("BENCHMARK_USER_COUNT")
-	fmt.Printf("Env BENCHMARK_USER_COUNT:%s\n", benchmarkUserCountParam)
-	var benchmarkUserCount int
-	if benchmarkUserCountParam != "" {
-		benchmarkUserCount, err = strconv.Atoi(benchmarkUserCountParam)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	benchmarkOrderCountParam := os.Getenv("BENCHMARK_ORDER_COUNT")
-	fmt.Printf("Env BENCHMARK_ORDER_COUNT:%s\n", benchmarkOrderCountParam)
-	var benchmarkOrderCount int
-	if benchmarkOrderCountParam != "" {
-		benchmarkOrderCount, err = strconv.Atoi(benchmarkOrderCountParam)
-		if err != nil {
-			panic(err)
-		}
-	}
-
 	// Profiler initialization, best done as early as possible.
 	if err := profiler.Start(profiler.Config{ProjectID: stackdriverProject, Service: "alminium_spanner", ServiceVersion: "0.0.1"}); err != nil {
 		panic(err)
 	}
 
+	{
+		exporter, err := stackdriver.NewExporter(stackdriver.Options{
+			ProjectID: stackdriverProject,
+		})
+		if err != nil {
+			panic(err)
+		}
+		trace.RegisterExporter(exporter)
+	}
+
 	ctx := context.Background()
 
-	tc, err := trace.NewClient(ctx, stackdriverProject)
-	if err != nil {
-		panic(err)
-	}
-	do := grpc.WithUnaryInterceptor(tc.GRPCClientInterceptor())
-	o := option.WithGRPCDialOption(do)
-
-	sc, err := createClient(ctx, spannerDatabase, o)
+	sc, err := createClient(ctx, spannerDatabase)
 	if err != nil {
 		panic(err)
 	}
 
-	ts := NewTweetStore(tc, sc)
-	tcs := NewTweetCompositeKeyStore(tc, sc)
-	ths := NewTweetHashKeyStore(tc, sc)
-	tus := NewTweetUniqueIndexStore(tc, sc)
-	tbs := NewTweetBenchmarkStore(tc, sc, benchmarkTableName)
+	ts := NewTweetStore(sc)
+	tcs := NewTweetCompositeKeyStore(sc)
+	ths := NewTweetHashKeyStore(sc)
+	tus := NewTweetUniqueIndexStore(sc)
+	tbs := NewTweetBenchmarkStore(sc, benchmarkTableName)
 
 	endCh := make(chan error)
 
@@ -133,25 +97,8 @@ func main() {
 		goListTweetResultStruct(ts, endCh)
 	}
 	if wm.isRunWork("InsertBenchmarkJoinData") {
-		sc, err := createClient(ctx, fmt.Sprintf("projects/%s/instances/%s/databases/%s", spannerProject, spannerInstance, benchmarkDatabaseName), o)
-		if err != nil {
-			panic(err)
-		}
-
-		sac, err := createDatabaseAdminClient(ctx)
-		if err != nil {
-			panic(err)
-		}
-		jbac := NewJoinBenchmarkAdminClient(sac)
-
-		jbs := NewJoinBenchmarkStore(sc, benchmarkItemCount, benchmarkUserCount, benchmarkOrderCount)
-		if err := jbac.CreateJoinBenchmarkTables(ctx, spannerProject, spannerInstance, benchmarkDatabaseName, jbs.ItemTableName(), jbs.UserTableName(), jbs.OrderTableName(), jbs.OrderTableDetailTableName()); err != nil {
-			panic(err)
-		}
-
-		go func() {
-			GoInsertBenchmarkJoinData(jbs, benchmarkItemCount, benchmarkUserCount, benchmarkOrderCount, endCh)
-		}()
+		// TODO ずっと動き続けるユースケースを想定してchanで終了しているが、こいつは一回しか動かない
+		RunBenchmarkDataCreator(endCh)
 	}
 
 	err = <-endCh

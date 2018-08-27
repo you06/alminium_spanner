@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
-	"cloud.google.com/go/trace"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"go.opencensus.io/trace"
 	"google.golang.org/api/iterator"
 )
 
@@ -23,10 +23,9 @@ type TweetStore interface {
 var tweetStore TweetStore
 
 // NewTweetStore is New TweetStore
-func NewTweetStore(tc *trace.Client, sc *spanner.Client) TweetStore {
+func NewTweetStore(sc *spanner.Client) TweetStore {
 	if tweetStore == nil {
 		tweetStore = &defaultTweetStore{
-			tc: tc,
 			sc: sc,
 		}
 	}
@@ -46,7 +45,6 @@ type Tweet struct {
 }
 
 type defaultTweetStore struct {
-	tc *trace.Client
 	sc *spanner.Client
 }
 
@@ -57,8 +55,8 @@ func (s *defaultTweetStore) TableName() string {
 
 // Insert is Insert to Tweet
 func (s *defaultTweetStore) Insert(ctx context.Context, tweet *Tweet) error {
-	ts := s.tc.NewSpan("/tweet/insert")
-	defer ts.Finish()
+	ctx, span := trace.StartSpan(ctx, "/tweet/insert")
+	defer span.End()
 
 	m, err := spanner.InsertStruct(s.TableName(), tweet)
 	if err != nil {
@@ -82,8 +80,8 @@ func (s *defaultTweetStore) Insert(ctx context.Context, tweet *Tweet) error {
 }
 
 func (s defaultTweetStore) Get(ctx context.Context, key spanner.Key) (*Tweet, error) {
-	ts := s.tc.NewSpan("/tweet/get")
-	defer ts.Finish()
+	ctx, span := trace.StartSpan(ctx, "/tweet/get")
+	defer span.End()
 
 	row, err := s.sc.Single().ReadRow(ctx, s.TableName(), key, []string{"Author", "CommitedAt", "Content", "CreatedAt", "Favos", "Sort", "UpdatedAt"})
 	if err != nil {
@@ -96,8 +94,8 @@ func (s defaultTweetStore) Get(ctx context.Context, key spanner.Key) (*Tweet, er
 
 // Query is Tweet を sort_ascで取得する
 func (s *defaultTweetStore) Query(ctx context.Context, limit int) ([]*Tweet, error) {
-	ts := s.tc.NewSpan("/tweet/query")
-	defer ts.Finish()
+	ctx, span := trace.StartSpan(ctx, "/tweet/query")
+	defer span.End()
 
 	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "sort_asc", spanner.AllKeys(), []string{"Id", "Sort"})
 	defer iter.Stop()
@@ -133,8 +131,8 @@ type TweetIDAndAuthor struct {
 
 // QueryResultStruct is StructをResultで返すQueryのサンプル
 func (s *defaultTweetStore) QueryResultStruct(ctx context.Context) ([]*TweetIDAndAuthor, error) {
-	ts := s.tc.NewSpan("/tweet/queryResultStruct")
-	defer ts.Finish()
+	ctx, span := trace.StartSpan(ctx, "/tweet/queryResultStruct")
+	defer span.End()
 
 	iter := s.sc.Single().Query(ctx, spanner.NewStatement("SELECT ARRAY(SELECT STRUCT(Id, Author)) As IdWithAuthor FROM Tweet LIMIT 10;"))
 	defer iter.Stop()

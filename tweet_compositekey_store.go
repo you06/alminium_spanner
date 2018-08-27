@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
-	"cloud.google.com/go/trace"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"go.opencensus.io/trace"
 	"google.golang.org/api/iterator"
 )
 
@@ -22,10 +22,9 @@ type TweetCompositeKeyStore interface {
 var tweetCompositeKeyStore TweetCompositeKeyStore
 
 // NewTweetCompositeKeyStore is New TweetStore
-func NewTweetCompositeKeyStore(tc *trace.Client, sc *spanner.Client) TweetCompositeKeyStore {
+func NewTweetCompositeKeyStore(sc *spanner.Client) TweetCompositeKeyStore {
 	if tweetCompositeKeyStore == nil {
 		tweetCompositeKeyStore = &defaultTweetCompositeKeyStore{
-			tc: tc,
 			sc: sc,
 		}
 	}
@@ -45,7 +44,6 @@ type TweetCompositeKey struct {
 }
 
 type defaultTweetCompositeKeyStore struct {
-	tc *trace.Client
 	sc *spanner.Client
 }
 
@@ -56,8 +54,8 @@ func (s *defaultTweetCompositeKeyStore) TableName() string {
 
 // Insert is Insert to Tweet
 func (s *defaultTweetCompositeKeyStore) Insert(ctx context.Context, tweet *TweetCompositeKey) error {
-	ts := s.tc.NewSpan("/tweetCompositeKey/insert")
-	defer ts.Finish()
+	ctx, span := trace.StartSpan(ctx, "/tweetCompositeKey/insert")
+	defer span.End()
 
 	m, err := spanner.InsertStruct(s.TableName(), tweet)
 	if err != nil {
@@ -81,8 +79,8 @@ func (s *defaultTweetCompositeKeyStore) Insert(ctx context.Context, tweet *Tweet
 }
 
 func (s defaultTweetCompositeKeyStore) Get(ctx context.Context, key spanner.Key) (*TweetCompositeKey, error) {
-	ts := s.tc.NewSpan("/tweetCompositeKey/get")
-	defer ts.Finish()
+	ctx, span := trace.StartSpan(ctx, "/tweetCompositeKey/get")
+	defer span.End()
 
 	row, err := s.sc.Single().ReadRow(ctx, s.TableName(), key, []string{"Author", "CommitedAt", "Content", "CreatedAt", "Favos", "Sort", "UpdatedAt"})
 	if err != nil {
@@ -95,8 +93,8 @@ func (s defaultTweetCompositeKeyStore) Get(ctx context.Context, key spanner.Key)
 
 // Query is Tweet を sort_ascで取得する
 func (s *defaultTweetCompositeKeyStore) Query(ctx context.Context, limit int) ([]*TweetCompositeKey, error) {
-	ts := s.tc.NewSpan("/tweetCompositeKey/query")
-	defer ts.Finish()
+	ctx, span := trace.StartSpan(ctx, "/tweetCompositeKey/query")
+	defer span.End()
 
 	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "sort_asc", spanner.AllKeys(), []string{"Id", "Sort"})
 	defer iter.Stop()

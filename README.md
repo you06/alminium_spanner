@@ -58,13 +58,16 @@ Startup Scriptで勝手に動いて終わったら、自分自身を削除する
 
 ```
 #!/bin/bash
-gsutil cp gs://bin-sinmetal/alminium.bin .
+gsutil cp gs://bin-gcpug/alminium.bin .
 sudo chmod +x alminium.bin
-export STACKDRIVER_PROJECT=gcpug
-export SPANNER_DATABASE=projects/gcpug/instances/gcpug-shared-instance/databases/sinmetal
-export RUN_WORKS=InsertBenchmarkTweet
-export BENCHMARK_TABLE_NAME=Tweet100m
-export BENCHMARK_COUNT=100000000
+export SPANNER_PROJECT=gcpug-spanner
+export STACKDRIVER_PROJECT=gcpug-stackdriver
+export SPANNER_INSTANCE=gcpug-shared-instance
+export RUN_WORKS=InsertBenchmarkJoinData
+export BENCHMARK_DATABASE_NAME=sinmetal_benchmark_a
+export BENCHMARK_ITEM_COUNT=1000
+export BENCHMARK_USER_COUNT=1000
+export BENCHMARK_ORDER_COUNT=1000
 ./alminium.bin
 
 # Delete Me

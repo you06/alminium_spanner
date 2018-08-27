@@ -26,6 +26,7 @@ func (c *JoinBenchmarkAdminClient) CreateJoinBenchmarkTables(ctx context.Context
 			CategoryId STRING(MAX) NOT NULL,
 			Name STRING(MAX) NOT NULL,
 			Price INT64 NOT NULL,
+            FavUserIds ARRAY<STRING(MAX)> NOT NULL,
 			CreatedAt TIMESTAMP NOT NULL,
 			UpdatedAt TIMESTAMP NOT NULL,
 			CommitedAt TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
@@ -120,7 +121,9 @@ func (c *JoinBenchmarkAdminClient) CreateJoinBenchmarkTables(ctx context.Context
 			ShardCreatedAt INT64 NOT NULL,
 			Price INT64 NOT NULL,
 			ItemId STRING(MAX) NOT NULL,
+            ItemCategoryId STRING(MAX) NOT NULL,
 			Number INT64 NOT NULL,
+            FavUserIds ARRAY<STRING(MAX)> NOT NULL,
 		) PRIMARY KEY (OrderId, OrderDetailId),
 		  INTERLEAVE IN PARENT %s ON DELETE CASCADE`
 
