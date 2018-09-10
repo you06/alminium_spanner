@@ -13,15 +13,14 @@ import (
 
 	"cloud.google.com/go/profiler"
 	"cloud.google.com/go/spanner"
-	"cloud.google.com/go/trace"
+	sadmin "cloud.google.com/go/spanner/admin/database/apiv1"
+	"contrib.go.opencensus.io/exporter/stackdriver"
 	"github.com/google/uuid"
+	"go.opencensus.io/trace"
 	"google.golang.org/api/option"
-	"google.golang.org/grpc"
 )
 
 func main() {
-	fmt.Printf("Env HELLO:%s\n", os.Getenv("HELLO"))
-
 	spannerDatabase := os.Getenv("SPANNER_DATABASE")
 	fmt.Printf("Env SPANNER_DATABASE:%s\n", spannerDatabase)
 
@@ -51,25 +50,28 @@ func main() {
 		panic(err)
 	}
 
+	{
+		exporter, err := stackdriver.NewExporter(stackdriver.Options{
+			ProjectID: stackdriverProject,
+		})
+		if err != nil {
+			panic(err)
+		}
+		trace.RegisterExporter(exporter)
+	}
+
 	ctx := context.Background()
 
-	tc, err := trace.NewClient(ctx, stackdriverProject)
-	if err != nil {
-		panic(err)
-	}
-	do := grpc.WithUnaryInterceptor(tc.GRPCClientInterceptor())
-	o := option.WithGRPCDialOption(do)
-
-	sc, err := createClient(ctx, spannerDatabase, o)
+	sc, err := createClient(ctx, spannerDatabase)
 	if err != nil {
 		panic(err)
 	}
 
-	ts := NewTweetStore(tc, sc)
-	tcs := NewTweetCompositeKeyStore(tc, sc)
-	ths := NewTweetHashKeyStore(tc, sc)
-	tus := NewTweetUniqueIndexStore(tc, sc)
-	tbs := NewTweetBenchmarkStore(tc, sc, benchmarkTableName)
+	ts := NewTweetStore(sc)
+	tcs := NewTweetCompositeKeyStore(sc)
+	ths := NewTweetHashKeyStore(sc)
+	tus := NewTweetUniqueIndexStore(sc)
+	tbs := NewTweetBenchmarkStore(sc, benchmarkTableName)
 
 	endCh := make(chan error)
 
@@ -94,6 +96,10 @@ func main() {
 	if wm.isRunWork("ListTweetResultStruct") {
 		goListTweetResultStruct(ts, endCh)
 	}
+	if wm.isRunWork("InsertBenchmarkJoinData") {
+		// TODO ずっと動き続けるユースケースを想定してchanで終了しているが、こいつは一回しか動かない
+		RunBenchmarkDataCreator(endCh)
+	}
 
 	err = <-endCh
 	fmt.Printf("%+v", err)
@@ -106,6 +112,15 @@ func createClient(ctx context.Context, db string, o ...option.ClientOption) (*sp
 	}
 
 	return dataClient, nil
+}
+
+func createDatabaseAdminClient(ctx context.Context, o ...option.ClientOption) (*sadmin.DatabaseAdminClient, error) {
+	c, err := sadmin.NewDatabaseAdminClient(ctx, o...)
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }
 
 func getAuthor() string {

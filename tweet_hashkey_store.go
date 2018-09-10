@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
-	"cloud.google.com/go/trace"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"go.opencensus.io/trace"
 	"google.golang.org/api/iterator"
 )
 
@@ -25,10 +25,9 @@ type TweetHashKeyStore interface {
 var tweetHashKeyStore TweetHashKeyStore
 
 // NewTweetHashKeyStore is New TweetHashKeyStore
-func NewTweetHashKeyStore(tc *trace.Client, sc *spanner.Client) TweetHashKeyStore {
+func NewTweetHashKeyStore(sc *spanner.Client) TweetHashKeyStore {
 	if tweetHashKeyStore == nil {
 		tweetHashKeyStore = &defaultTweetHashKeyStore{
-			tc: tc,
 			sc: sc,
 		}
 	}
@@ -48,7 +47,6 @@ type TweetHashKey struct {
 }
 
 type defaultTweetHashKeyStore struct {
-	tc *trace.Client
 	sc *spanner.Client
 }
 
@@ -64,8 +62,8 @@ func (s *defaultTweetHashKeyStore) NewKey(id string, author string) string {
 
 // Insert is Insert to Tweet
 func (s *defaultTweetHashKeyStore) Insert(ctx context.Context, tweet *TweetHashKey) error {
-	ts := s.tc.NewSpan("/tweetHashKey/insert")
-	defer ts.Finish()
+	ctx, span := trace.StartSpan(ctx, "/tweetHashKey/insert")
+	defer span.End()
 
 	m, err := spanner.InsertStruct(s.TableName(), tweet)
 	if err != nil {
@@ -89,8 +87,8 @@ func (s *defaultTweetHashKeyStore) Insert(ctx context.Context, tweet *TweetHashK
 }
 
 func (s defaultTweetHashKeyStore) Get(ctx context.Context, key spanner.Key) (*TweetHashKey, error) {
-	ts := s.tc.NewSpan("/tweetHashKey/get")
-	defer ts.Finish()
+	ctx, span := trace.StartSpan(ctx, "/tweetHashKey/get")
+	defer span.End()
 
 	row, err := s.sc.Single().ReadRow(ctx, s.TableName(), key, []string{"Author", "CommitedAt", "Content", "CreatedAt", "Favos", "Sort", "UpdatedAt"})
 	if err != nil {
@@ -103,8 +101,8 @@ func (s defaultTweetHashKeyStore) Get(ctx context.Context, key spanner.Key) (*Tw
 
 // Query is Tweet を sort_ascで取得する
 func (s *defaultTweetHashKeyStore) Query(ctx context.Context, limit int) ([]*TweetHashKey, error) {
-	ts := s.tc.NewSpan("/tweetHashKey/query")
-	defer ts.Finish()
+	ctx, span := trace.StartSpan(ctx, "/tweetHashKey/query")
+	defer span.End()
 
 	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "sort_asc", spanner.AllKeys(), []string{"Id", "Sort"})
 	defer iter.Stop()

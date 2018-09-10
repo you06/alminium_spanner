@@ -31,6 +31,7 @@ example `InsertTweet,ListTweet`
 * InsertTweetUniqueIndex
 * ListTweet
 * ListTweetResultStruct
+* InsertBenchmarkJoinData
 
 #### BENCHMARK_TABLE_NAME
 
@@ -42,7 +43,7 @@ InsertするTableName
 `InsertBenchmarkTweet` の時に利用する。
 Insertする行数
 
-### InsertBenchmarkTweet で大量のデータをTableにInsertする
+### InsertBenchmarkJoinData で大量のデータをTableにInsertする
 
 10億件とか自分のPCで動かしてるつらいので、Compute Engineに適当にやってもらおう。
 
@@ -51,29 +52,14 @@ Insertする行数
 Cloud Storage上にビルドしたバイナリを置いておく。
 以下の例では `gs://bin-sinmetal/alminium.bin` を置いている。
 
-#### startup script sample
+#### DataをぶっこむCompute Engineを作成する
 
 Startup Scriptで勝手に動いて終わったら、自分自身を削除するようにしておく。
 リトライなどは入っておらず、Preemptible VMを使うことは考慮していない。
 
+`bench_startup_script.sh` の項目を修正する
+
 ```
-#!/bin/bash
-gsutil cp gs://bin-sinmetal/alminium.bin .
-sudo chmod +x alminium.bin
-export STACKDRIVER_PROJECT=gcpug
-export SPANNER_DATABASE=projects/gcpug/instances/gcpug-shared-instance/databases/sinmetal
-export RUN_WORKS=InsertBenchmarkTweet
-export BENCHMARK_TABLE_NAME=Tweet100m
-export BENCHMARK_COUNT=100000000
-./alminium.bin
-
-# Delete Me
-INSTANCE_NAME=$(curl http://metadata/computeMetadata/v1/instance/name -H "Metadata-Flavor: Google")
-INSTANCE_ZONE=$(curl http://metadata/computeMetadata/v1/instance/zone -H "Metadata-Flavor: Google")
-
-IFS='/'
-set -- $INSTANCE_ZONE
-INSTANCE_ZONE=$4
-echo $INSTANCE_ZONE
-yes | gcloud compute instances delete $INSTANCE_NAME --zone $INSTANCE_ZONE
+export STORAGE_PATH=gs://hoge/alminium.bin
+./start.sh
 ```
