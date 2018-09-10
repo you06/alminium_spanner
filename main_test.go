@@ -22,4 +22,6 @@ func TestMain(m *testing.M) {
 		return
 	}
 	spannerClient = client
+
+	fmt.Println(m.Run())
 }
