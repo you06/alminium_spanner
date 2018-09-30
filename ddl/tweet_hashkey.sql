@@ -17,3 +17,8 @@ CREATE TABLE Operation (
 	Body BYTES(MAX),
 	CommitedAt TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
 ) PRIMARY KEY (Id);
+
+CREATE INDEX TweetHashKeySortAsc
+ON TweetHashKey (
+	Sort
+);
