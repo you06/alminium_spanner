@@ -18,7 +18,7 @@ spec:
           limits:
             cpu: "8"
           requests:
-            cpu: "4"
+            cpu: "3"
         envFrom:
           - configMapRef:
               name: config
