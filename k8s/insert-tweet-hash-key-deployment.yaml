@@ -14,6 +14,14 @@ spec:
       containers:
       - image: gcr.io/$PROJECT_ID/sinmetal/alminium_spanner
         name: insert-tweet-hash-key-dep
+        resources:
+          limits:
+            cpu: "8"
+          requests:
+            cpu: "4"
+        args:
+        - -cpus
+        - "2"
         envFrom:
           - configMapRef:
               name: config
