@@ -32,6 +32,17 @@ func main() {
 	fmt.Printf("Env RUN_WORKS:%s\n", runWorks)
 	wm := newWorkManager(runWorks)
 
+	goroutineParam := os.Getenv("GOROUTINE")
+	fmt.Printf("Env RUN_WORKS:%s\n", goroutineParam)
+	var goroutine int
+	var err error
+	if goroutineParam != "" {
+		goroutine, err = strconv.Atoi(goroutineParam)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	// InsertBenchmarkTweet 用
 	benchmarkTableName := os.Getenv("BENCHMARK_TABLE_NAME")
 	fmt.Printf("Env BENCHMARK_TABLE_NAME:%s\n", benchmarkTableName)
@@ -40,7 +51,6 @@ func main() {
 	benchmarkCountParam := os.Getenv("BENCHMARK_COUNT")
 	fmt.Printf("Env BENCHMARK_COUNT:%s\n", benchmarkCountParam)
 	var benchmarkCount int
-	var err error
 	if benchmarkCountParam != "" {
 		benchmarkCount, err = strconv.Atoi(benchmarkCountParam)
 		if err != nil {
@@ -82,13 +92,13 @@ func main() {
 		goInsertBenchmarkTweet(tbs, benchmarkCount, endCh)
 	}
 	if wm.isRunWork("InsertTweet") {
-		goInsertTweet(ts, endCh)
+		goInsertTweet(ts, goroutine, endCh)
 	}
 	if wm.isRunWork("InsertTweetCompositeKey") {
-		goInsertTweetCompositeKey(tcs, endCh)
+		goInsertTweetCompositeKey(tcs, goroutine, endCh)
 	}
 	if wm.isRunWork("InsertTweetHashKey") {
-		goInsertTweetHashKey(ths, endCh)
+		goInsertTweetHashKey(ths, goroutine, endCh)
 	}
 	if wm.isRunWork("InsertTweetUniqueIndex") {
 		goInsertTweetUniqueIndex(tus, endCh)
@@ -210,11 +220,11 @@ func goInsertBenchmarkTweet(tbs TweetBenchmarkStore, count int, endCh chan<- err
 	}()
 }
 
-func goInsertTweet(ts TweetStore, endCh chan<- error) {
+func goInsertTweet(ts TweetStore, goroutine int, endCh chan<- error) {
 	go func() {
 		for {
 			var wg sync.WaitGroup
-			for i := 0; i < 50; i++ {
+			for i := 0; i < goroutine; i++ {
 				wg.Add(1)
 				go func(i int) {
 					defer wg.Done()
@@ -240,11 +250,11 @@ func goInsertTweet(ts TweetStore, endCh chan<- error) {
 	}()
 }
 
-func goInsertTweetCompositeKey(tcs TweetCompositeKeyStore, endCh chan<- error) {
+func goInsertTweetCompositeKey(tcs TweetCompositeKeyStore, goroutine int, endCh chan<- error) {
 	go func() {
 		for {
 			var wg sync.WaitGroup
-			for i := 0; i < 50; i++ {
+			for i := 0; i < goroutine; i++ {
 				wg.Add(1)
 				go func(i int) {
 					defer wg.Done()
@@ -271,11 +281,11 @@ func goInsertTweetCompositeKey(tcs TweetCompositeKeyStore, endCh chan<- error) {
 	}()
 }
 
-func goInsertTweetHashKey(ths TweetHashKeyStore, endCh chan<- error) {
+func goInsertTweetHashKey(ths TweetHashKeyStore, goroutine int, endCh chan<- error) {
 	go func() {
 		for {
 			var wg sync.WaitGroup
-			for i := 0; i < 50; i++ {
+			for i := 0; i < goroutine; i++ {
 				wg.Add(1)
 				go func(i int) {
 					defer wg.Done()

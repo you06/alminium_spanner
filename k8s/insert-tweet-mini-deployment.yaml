@@ -1,0 +1,26 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    name: insert-tweet-mini-dep
+  name: insert-tweet-mini-dep
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: insert-tweet-mini-dep
+    spec:
+      containers:
+      - image: gcr.io/$PROJECT_ID/sinmetal/alminium_spanner/feature/id/22:60605d1308ff8d193b05aa14e3521319e72414af
+        name: insert-tweet-mini-dep
+        resources:
+          limits:
+            cpu: "1"
+          requests:
+            cpu: "0.5"
+        envFrom:
+          - configMapRef:
+              name: config
+          - configMapRef:
+              name: insert-tweet-mini-config

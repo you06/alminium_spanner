@@ -4,3 +4,4 @@ metadata:
   name: insert-tweet-hash-key-config
 data:
   RUN_WORKS: InsertTweetHashKey
+  GOROUTINE: 50
