@@ -4,4 +4,4 @@ metadata:
   name: insert-tweet-config
 data:
   RUN_WORKS: InsertTweet
-  GOROUTINE: 50
+  GOROUTINE: "50"
