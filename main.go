@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/profiler"
@@ -212,21 +213,29 @@ func goInsertBenchmarkTweet(tbs TweetBenchmarkStore, count int, endCh chan<- err
 func goInsertTweet(ts TweetStore, endCh chan<- error) {
 	go func() {
 		for {
-			ctx := context.Background()
-			id := uuid.New().String()
-			if err := ts.Insert(ctx, &Tweet{
-				ID:         id,
-				Author:     getAuthor(),
-				Content:    uuid.New().String(),
-				Favos:      getAuthors(),
-				Sort:       rand.Int(),
-				CreatedAt:  time.Now(),
-				UpdatedAt:  time.Now(),
-				CommitedAt: spanner.CommitTimestamp,
-			}); err != nil {
-				endCh <- err
+			var wg sync.WaitGroup
+			for i := 0; i < 100; i++ {
+				wg.Add(1)
+				go func(i int) {
+					defer wg.Done()
+					ctx := context.Background()
+					id := uuid.New().String()
+					if err := ts.Insert(ctx, &Tweet{
+						ID:         id,
+						Author:     getAuthor(),
+						Content:    uuid.New().String(),
+						Favos:      getAuthors(),
+						Sort:       rand.Int(),
+						CreatedAt:  time.Now(),
+						UpdatedAt:  time.Now(),
+						CommitedAt: spanner.CommitTimestamp,
+					}); err != nil {
+						endCh <- err
+					}
+					fmt.Printf("TWEET_INSERT ID = %s, i = %d\n", id, i)
+				}(i)
 			}
-			fmt.Printf("TWEET_INSERT ID = %s\n", id)
+			wg.Wait()
 		}
 	}()
 }
