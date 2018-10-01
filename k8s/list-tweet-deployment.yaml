@@ -1,0 +1,21 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    name: list-tweet-dep
+  name: list-tweet-dep
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: list-tweet-dep
+    spec:
+      containers:
+      - image: gcr.io/$PROJECT_ID/sinmetal/alminium_spanner
+        name: list-tweet-dep
+        envFrom:
+          - configMapRef:
+              name: config
+          - configMapRef:
+              name: list-tweet-config
