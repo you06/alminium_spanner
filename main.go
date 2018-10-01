@@ -33,7 +33,7 @@ func main() {
 	wm := newWorkManager(runWorks)
 
 	goroutineParam := os.Getenv("GOROUTINE")
-	fmt.Printf("Env RUN_WORKS:%s\n", goroutineParam)
+	fmt.Printf("Env GOROUTINE:%s\n", goroutineParam)
 	var goroutine int
 	var err error
 	if goroutineParam != "" {
