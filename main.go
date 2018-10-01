@@ -31,9 +31,11 @@ func main() {
 	fmt.Printf("Env RUN_WORKS:%s\n", runWorks)
 	wm := newWorkManager(runWorks)
 
+	// InsertBenchmarkTweet 用
 	benchmarkTableName := os.Getenv("BENCHMARK_TABLE_NAME")
 	fmt.Printf("Env BENCHMARK_TABLE_NAME:%s\n", benchmarkTableName)
 
+	// InsertBenchmarkTweet 用
 	benchmarkCountParam := os.Getenv("BENCHMARK_COUNT")
 	fmt.Printf("Env BENCHMARK_COUNT:%s\n", benchmarkCountParam)
 	var benchmarkCount int
