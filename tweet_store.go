@@ -97,7 +97,7 @@ func (s *defaultTweetStore) Query(ctx context.Context, limit int) ([]*Tweet, err
 	ctx, span := trace.StartSpan(ctx, "/tweet/query")
 	defer span.End()
 
-	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "sort_asc", spanner.AllKeys(), []string{"Id", "Sort"})
+	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "TweetSortAsc", spanner.AllKeys(), []string{"Id", "Sort"})
 	defer iter.Stop()
 
 	count := 0

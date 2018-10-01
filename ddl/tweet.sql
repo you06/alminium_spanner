@@ -1,4 +1,4 @@
-CREATE TABLE TweetHashKey (
+CREATE TABLE Tweet (
     Id STRING(MAX) NOT NULL,
     Author STRING(MAX) NOT NULL,
     CommitedAt TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
@@ -9,7 +9,7 @@ CREATE TABLE TweetHashKey (
     UpdatedAt TIMESTAMP NOT NULL,
 ) PRIMARY KEY (Id);
 
-CREATE INDEX TweetHashKeySortAsc
-ON TweetHashKey (
+CREATE INDEX TweetSortAsc
+ON Tweet (
 	Sort
 );
