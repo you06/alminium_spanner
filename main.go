@@ -105,7 +105,7 @@ func main() {
 	}
 
 	err = <-endCh
-	fmt.Printf("%+v", err)
+	fmt.Printf("BOMB %+v", err)
 }
 
 func createClient(ctx context.Context, db string, o ...option.ClientOption) (*spanner.Client, error) {
