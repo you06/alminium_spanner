@@ -214,7 +214,7 @@ func goInsertTweet(ts TweetStore, endCh chan<- error) {
 	go func() {
 		for {
 			var wg sync.WaitGroup
-			for i := 0; i < 100; i++ {
+			for i := 0; i < 50; i++ {
 				wg.Add(1)
 				go func(i int) {
 					defer wg.Done()
@@ -243,22 +243,30 @@ func goInsertTweet(ts TweetStore, endCh chan<- error) {
 func goInsertTweetCompositeKey(tcs TweetCompositeKeyStore, endCh chan<- error) {
 	go func() {
 		for {
-			ctx := context.Background()
-			id := uuid.New().String()
-			tweet := &TweetCompositeKey{
-				ID:         id,
-				Author:     getAuthor(),
-				Content:    uuid.New().String(),
-				Favos:      getAuthors(),
-				Sort:       rand.Int(),
-				CreatedAt:  time.Now(),
-				UpdatedAt:  time.Now(),
-				CommitedAt: spanner.CommitTimestamp,
+			var wg sync.WaitGroup
+			for i := 0; i < 50; i++ {
+				wg.Add(1)
+				go func(i int) {
+					defer wg.Done()
+					ctx := context.Background()
+					id := uuid.New().String()
+					tweet := &TweetCompositeKey{
+						ID:         id,
+						Author:     getAuthor(),
+						Content:    uuid.New().String(),
+						Favos:      getAuthors(),
+						Sort:       rand.Int(),
+						CreatedAt:  time.Now(),
+						UpdatedAt:  time.Now(),
+						CommitedAt: spanner.CommitTimestamp,
+					}
+					if err := tcs.Insert(ctx, tweet); err != nil {
+						endCh <- err
+					}
+					fmt.Printf("TWEET_COMPOSITEKEY_INSERT ID = %s, Author = %s\n", id, tweet.Author)
+				}(i)
 			}
-			if err := tcs.Insert(ctx, tweet); err != nil {
-				endCh <- err
-			}
-			fmt.Printf("TWEET_COMPOSITEKEY_INSERT ID = %s, Author = %s\n", id, tweet.Author)
+			wg.Wait()
 		}
 	}()
 }
@@ -266,23 +274,31 @@ func goInsertTweetCompositeKey(tcs TweetCompositeKeyStore, endCh chan<- error) {
 func goInsertTweetHashKey(ths TweetHashKeyStore, endCh chan<- error) {
 	go func() {
 		for {
-			ctx := context.Background()
-			author := getAuthor()
-			id := ths.NewKey(uuid.New().String(), author)
-			tweet := &TweetHashKey{
-				ID:         id,
-				Author:     getAuthor(),
-				Content:    uuid.New().String(),
-				Favos:      getAuthors(),
-				Sort:       rand.Int(),
-				CreatedAt:  time.Now(),
-				UpdatedAt:  time.Now(),
-				CommitedAt: spanner.CommitTimestamp,
+			var wg sync.WaitGroup
+			for i := 0; i < 50; i++ {
+				wg.Add(1)
+				go func(i int) {
+					defer wg.Done()
+					ctx := context.Background()
+					author := getAuthor()
+					id := ths.NewKey(uuid.New().String(), author)
+					tweet := &TweetHashKey{
+						ID:         id,
+						Author:     getAuthor(),
+						Content:    uuid.New().String(),
+						Favos:      getAuthors(),
+						Sort:       rand.Int(),
+						CreatedAt:  time.Now(),
+						UpdatedAt:  time.Now(),
+						CommitedAt: spanner.CommitTimestamp,
+					}
+					if err := ths.Insert(ctx, tweet); err != nil {
+						endCh <- err
+					}
+					fmt.Printf("TWEET_HASHKEY_INSERT ID = %s\n", id)
+				}(i)
 			}
-			if err := ths.Insert(ctx, tweet); err != nil {
-				endCh <- err
-			}
-			fmt.Printf("TWEET_HASHKEY_INSERT ID = %s\n", id)
+			wg.Wait()
 		}
 	}()
 }
