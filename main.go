@@ -126,7 +126,7 @@ func main() {
 
 func createClient(ctx context.Context, db string, o ...option.ClientOption) (*spanner.Client, error) {
 	config := spanner.ClientConfig{
-		NumChannels: 16,
+		NumChannels: 60,
 	}
 	dataClient, err := spanner.NewClientWithConfig(ctx, db, config, o...)
 	if err != nil {
