@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -54,7 +55,8 @@ func (s *defaultTweetStore) TableName() string {
 
 // Insert is Insert to Tweet
 func (s *defaultTweetStore) Insert(ctx context.Context, tweet *Tweet) error {
-	ctx, span := trace.StartSpan(ctx, "/tweet/insert")
+	wn := getWorkerName(ctx)
+	ctx, span := trace.StartSpan(ctx, fmt.Sprintf("/%s/tweet/insert", wn))
 	defer span.End()
 
 	m, err := spanner.InsertStruct(s.TableName(), tweet)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -54,7 +55,8 @@ func (s *defaultTweetCompositeKeyStore) TableName() string {
 
 // Insert is Insert to Tweet
 func (s *defaultTweetCompositeKeyStore) Insert(ctx context.Context, tweet *TweetCompositeKey) error {
-	ctx, span := trace.StartSpan(ctx, "/tweetCompositeKey/insert")
+	wn := getWorkerName(ctx)
+	ctx, span := trace.StartSpan(ctx, fmt.Sprintf("/%s/tweetCompositeKey/insert", wn))
 	defer span.End()
 
 	m, err := spanner.InsertStruct(s.TableName(), tweet)
@@ -79,7 +81,8 @@ func (s *defaultTweetCompositeKeyStore) Insert(ctx context.Context, tweet *Tweet
 }
 
 func (s defaultTweetCompositeKeyStore) Get(ctx context.Context, key spanner.Key) (*TweetCompositeKey, error) {
-	ctx, span := trace.StartSpan(ctx, "/tweetCompositeKey/get")
+	wn := getWorkerName(ctx)
+	ctx, span := trace.StartSpan(ctx, fmt.Sprintf("/%s/tweetCompositeKey/get", wn))
 	defer span.End()
 
 	row, err := s.sc.Single().ReadRow(ctx, s.TableName(), key, []string{"Author", "CommitedAt", "Content", "CreatedAt", "Favos", "Sort", "UpdatedAt"})

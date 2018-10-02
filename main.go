@@ -28,6 +28,12 @@ func main() {
 	stackdriverProject := os.Getenv("STACKDRIVER_PROJECT")
 	fmt.Printf("Env STACKDRIVER_PROJECT:%s\n", stackdriverProject)
 
+	workerName := os.Getenv("WORKER_NAME")
+	fmt.Printf("Env WORKER_NAME:%s\n", workerName)
+	if workerName == "" {
+		workerName = "default"
+	}
+
 	runWorks := os.Getenv("RUN_WORKS")
 	fmt.Printf("Env RUN_WORKS:%s\n", runWorks)
 	wm := newWorkManager(runWorks)
@@ -92,13 +98,13 @@ func main() {
 		goInsertBenchmarkTweet(tbs, benchmarkCount, endCh)
 	}
 	if wm.isRunWork("InsertTweet") {
-		goInsertTweet(ts, goroutine, endCh)
+		goInsertTweet(ts, workerName, goroutine, endCh)
 	}
 	if wm.isRunWork("InsertTweetCompositeKey") {
-		goInsertTweetCompositeKey(tcs, goroutine, endCh)
+		goInsertTweetCompositeKey(tcs, workerName, goroutine, endCh)
 	}
 	if wm.isRunWork("InsertTweetHashKey") {
-		goInsertTweetHashKey(ths, goroutine, endCh)
+		goInsertTweetHashKey(ths, workerName, goroutine, endCh)
 	}
 	if wm.isRunWork("InsertTweetUniqueIndex") {
 		goInsertTweetUniqueIndex(tus, endCh)
@@ -220,7 +226,7 @@ func goInsertBenchmarkTweet(tbs TweetBenchmarkStore, count int, endCh chan<- err
 	}()
 }
 
-func goInsertTweet(ts TweetStore, goroutine int, endCh chan<- error) {
+func goInsertTweet(ts TweetStore, workerName string, goroutine int, endCh chan<- error) {
 	go func() {
 		for {
 			var wg sync.WaitGroup
@@ -228,7 +234,7 @@ func goInsertTweet(ts TweetStore, goroutine int, endCh chan<- error) {
 				wg.Add(1)
 				go func(i int) {
 					defer wg.Done()
-					ctx := context.Background()
+					ctx := withWorkerName(context.Background(), workerName)
 					id := uuid.New().String()
 					if err := ts.Insert(ctx, &Tweet{
 						ID:         id,
@@ -250,7 +256,7 @@ func goInsertTweet(ts TweetStore, goroutine int, endCh chan<- error) {
 	}()
 }
 
-func goInsertTweetCompositeKey(tcs TweetCompositeKeyStore, goroutine int, endCh chan<- error) {
+func goInsertTweetCompositeKey(tcs TweetCompositeKeyStore, workerName string, goroutine int, endCh chan<- error) {
 	go func() {
 		for {
 			var wg sync.WaitGroup
@@ -258,7 +264,7 @@ func goInsertTweetCompositeKey(tcs TweetCompositeKeyStore, goroutine int, endCh 
 				wg.Add(1)
 				go func(i int) {
 					defer wg.Done()
-					ctx := context.Background()
+					ctx := withWorkerName(context.Background(), workerName)
 					id := uuid.New().String()
 					tweet := &TweetCompositeKey{
 						ID:         id,
@@ -281,7 +287,7 @@ func goInsertTweetCompositeKey(tcs TweetCompositeKeyStore, goroutine int, endCh 
 	}()
 }
 
-func goInsertTweetHashKey(ths TweetHashKeyStore, goroutine int, endCh chan<- error) {
+func goInsertTweetHashKey(ths TweetHashKeyStore, workerName string, goroutine int, endCh chan<- error) {
 	go func() {
 		for {
 			var wg sync.WaitGroup
@@ -289,7 +295,7 @@ func goInsertTweetHashKey(ths TweetHashKeyStore, goroutine int, endCh chan<- err
 				wg.Add(1)
 				go func(i int) {
 					defer wg.Done()
-					ctx := context.Background()
+					ctx := withWorkerName(context.Background(), workerName)
 					author := getAuthor()
 					id := ths.NewKey(uuid.New().String(), author)
 					tweet := &TweetHashKey{
@@ -371,4 +377,20 @@ func goListTweetResultStruct(ts TweetStore, endCh chan<- error) {
 			}
 		}
 	}()
+}
+
+type contextKey string
+
+const workerNameContextKey contextKey = "ContextWorkerNameKey"
+
+func withWorkerName(ctx context.Context, workerName string) context.Context {
+	return context.WithValue(ctx, workerNameContextKey, workerName)
+}
+
+func getWorkerName(ctx context.Context) string {
+	v := ctx.Value(workerNameContextKey)
+	if v == nil {
+		return "default"
+	}
+	return v.(string)
 }
