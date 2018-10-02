@@ -392,8 +392,10 @@ func withWorkerName(ctx context.Context, workerName string) context.Context {
 
 func getWorkerName(ctx context.Context) string {
 	v := ctx.Value(workerNameContextKey)
-	if v == nil {
+
+	wn, ok := v.(string)
+	if !ok {
 		return "default"
 	}
-	return v.(string)
+	return wn
 }
