@@ -92,10 +92,13 @@ func main() {
 	tus := NewTweetUniqueIndexStore(sc)
 	tbs := NewTweetBenchmarkStore(sc, benchmarkTableName)
 
-	endCh := make(chan error)
+	endCh := make(chan error, 10)
 
 	if wm.isRunWork("InsertBenchmarkTweet") && benchmarkCount > 0 {
 		goInsertBenchmarkTweet(tbs, benchmarkCount, endCh)
+	}
+	if wm.isRunWork("UpdateTweet") {
+		RunUpdateBenchmarkTweet(ts, endCh)
 	}
 	if wm.isRunWork("InsertTweet") {
 		goInsertTweet(ts, workerName, goroutine, endCh)

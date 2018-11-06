@@ -15,6 +15,7 @@ import (
 type TweetStore interface {
 	TableName() string
 	Insert(ctx context.Context, tweet *Tweet) error
+	Update(ctx context.Context, id string) error
 	Get(ctx context.Context, key spanner.Key) (*Tweet, error)
 	Query(ctx context.Context, limit int) ([]*Tweet, error)
 	QueryResultStruct(ctx context.Context) ([]*TweetIDAndAuthor, error)
@@ -37,6 +38,7 @@ type Tweet struct {
 	ID         string `spanner:"Id"`
 	Author     string
 	Content    string
+	Count      int
 	Favos      []string
 	Sort       int
 	CreatedAt  time.Time
@@ -153,4 +155,28 @@ func (s *defaultTweetStore) QueryResultStruct(ctx context.Context) ([]*TweetIDAn
 	}
 
 	return ias, nil
+}
+
+func (s *defaultTweetStore) Update(ctx context.Context, id string) error {
+	ctx, span := trace.StartSpan(ctx, "/tweet/update")
+	defer span.End()
+
+	_, err := s.sc.ReadWriteTransaction(ctx, func(ctx context.Context, txn *spanner.ReadWriteTransaction) error {
+		row, err := txn.ReadRow(ctx, s.TableName(), spanner.Key{id}, []string{"Count"})
+		if err != nil {
+			return err
+		}
+		var count int64
+		if err := row.ColumnByName("Count", &count); err != nil {
+			return err
+		}
+		count++
+		cols := []string{"Id", "Count", "UpdatedAt", "CommitedAt"}
+
+		return txn.BufferWrite([]*spanner.Mutation{
+			spanner.Update(s.TableName(), cols, []interface{}{id, count, time.Now(), spanner.CommitTimestamp}),
+		})
+	})
+
+	return err
 }

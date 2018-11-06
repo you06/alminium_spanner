@@ -1,0 +1,7 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: update-tweet-config
+data:
+  RUN_WORKS: UpdateTweet
+  GOROUTINE: "50"
