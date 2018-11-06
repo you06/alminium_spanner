@@ -1,14 +1,8 @@
 steps:
-- name: 'gcr.io/cloud-builders/go'
-  args: ['test', './...']
-  env: ['PROJECT_ROOT=github.com/sinmetal/alminium_spanner']
-- name: 'gcr.io/cloud-builders/go'
-  args: ['install', '-a', '-ldflags', '-s', '-installsuffix', 'cgo', 'github.com/sinmetal/alminium_spanner']
-  env: [
-    'PROJECT_ROOT=github.com/sinmetal/alminium_spanner',
-    'CGO_ENABLED=0',
-    'GOOS=linux'
-  ]
+- name: 'golang:1.11.1-stretch'
+  entrypoint: 'go'
+  args: ['build', '.']
+  env: ['GO111MODULE=on']
 - name: 'gcr.io/cloud-builders/docker'
   args: ['build', '--tag=gcr.io/$PROJECT_ID/sinmetal/alminium_spanner/$BRANCH_NAME:$COMMIT_SHA', '.']
 - name: 'gcr.io/cloud-builders/docker'
@@ -17,9 +11,36 @@ steps:
   args:
     - set
     - image
-    - deployment/alminium-spanner-node
-    - alminium-spanner-node=gcr.io/$PROJECT_ID/sinmetal/alminium_spanner/$BRANCH_NAME:$COMMIT_SHA
+    - deployment/insert-tweet-hash-key-dep
+    - insert-tweet-hash-key-dep=gcr.io/$PROJECT_ID/sinmetal/alminium_spanner/$BRANCH_NAME:$COMMIT_SHA
   env:
     - 'CLOUDSDK_COMPUTE_ZONE=asia-northeast1-b'
     - 'CLOUDSDK_CONTAINER_CLUSTER=sinmetal-tokyo'
+- name: 'gcr.io/cloud-builders/kubectl'
+  args:
+  - set
+  - image
+  - deployment/insert-tweet-dep
+  - insert-tweet-dep=gcr.io/$PROJECT_ID/sinmetal/alminium_spanner/$BRANCH_NAME:$COMMIT_SHA
+  env:
+  - 'CLOUDSDK_COMPUTE_ZONE=asia-northeast1-b'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=sinmetal-tokyo'
+- name: 'gcr.io/cloud-builders/kubectl'
+  args:
+  - set
+  - image
+  - deployment/list-tweet-dep
+  - list-tweet-dep=gcr.io/$PROJECT_ID/sinmetal/alminium_spanner/$BRANCH_NAME:$COMMIT_SHA
+  env:
+  - 'CLOUDSDK_COMPUTE_ZONE=asia-northeast1-b'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=sinmetal-tokyo'
+- name: 'gcr.io/cloud-builders/kubectl'
+  args:
+  - set
+  - image
+  - deployment/insert-tweet-mini-dep
+  - insert-tweet-mini-dep=gcr.io/$PROJECT_ID/sinmetal/alminium_spanner/$BRANCH_NAME:$COMMIT_SHA
+  env:
+  - 'CLOUDSDK_COMPUTE_ZONE=asia-northeast1-b'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=sinmetal-tokyo'
 images: ['gcr.io/$PROJECT_ID/sinmetal/alminium_spanner/$BRANCH_NAME:$COMMIT_SHA']

@@ -1,0 +1,8 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: insert-tweet-mini-config
+data:
+  WORKER_NAME: "mini"
+  RUN_WORKS: "InsertTweet"
+  GOROUTINE: "2"

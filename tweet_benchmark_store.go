@@ -6,6 +6,7 @@ import (
 
 	"cloud.google.com/go/spanner"
 	"github.com/pkg/errors"
+	"go.opencensus.io/trace"
 )
 
 // TweetBenchmarkStore is TweetTable Functions
@@ -53,6 +54,9 @@ func (s *defaultTweetBenchmarkStore) TableName() string {
 
 // Insert is Insert to Tweet
 func (s *defaultTweetBenchmarkStore) Insert(ctx context.Context, tweets []*TweetBenchmark) error {
+	ctx, span := trace.StartSpan(ctx, "/tweetbenchmark/store/insert")
+	defer span.End()
+
 	ms := []*spanner.Mutation{}
 
 	for _, tweet := range tweets {
