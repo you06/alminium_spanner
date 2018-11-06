@@ -43,4 +43,13 @@ steps:
   env:
   - 'CLOUDSDK_COMPUTE_ZONE=asia-northeast1-b'
   - 'CLOUDSDK_CONTAINER_CLUSTER=sinmetal-tokyo'
+- name: 'gcr.io/cloud-builders/kubectl'
+    args:
+      - set
+      - image
+      - deployment/update-tweet-dep
+      - update-tweet-dep=gcr.io/$PROJECT_ID/sinmetal/alminium_spanner/$BRANCH_NAME:$COMMIT_SHA
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=asia-northeast1-b'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=sinmetal-tokyo'
 images: ['gcr.io/$PROJECT_ID/sinmetal/alminium_spanner/$BRANCH_NAME:$COMMIT_SHA']
