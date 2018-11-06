@@ -9,12 +9,12 @@ import (
 	"sync"
 )
 
-func RunUpdateBenchmarkTweet(ts TweetStore, endCh chan<- error) {
+func RunUpdateBenchmarkTweet(ts TweetStore, goroutine int, endCh chan<- error) {
 	go func() {
 		fmt.Println("Start UpdateTweet")
 
 		var wg sync.WaitGroup
-		for i := 0; i < 80; i++ {
+		for i := 0; i < goroutine; i++ {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
