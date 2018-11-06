@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -15,6 +16,7 @@ import (
 type TweetStore interface {
 	TableName() string
 	Insert(ctx context.Context, tweet *Tweet) error
+	InsertBench(ctx context.Context, id string) error
 	Update(ctx context.Context, id string) error
 	Get(ctx context.Context, key spanner.Key) (*Tweet, error)
 	Query(ctx context.Context, limit int) ([]*Tweet, error)
@@ -162,12 +164,17 @@ func (s *defaultTweetStore) Update(ctx context.Context, id string) error {
 	defer span.End()
 
 	_, err := s.sc.ReadWriteTransaction(ctx, func(ctx context.Context, txn *spanner.ReadWriteTransaction) error {
-		row, err := txn.ReadRow(ctx, s.TableName(), spanner.Key{id}, []string{"Count"})
+		tr, err := txn.ReadRow(ctx, s.TableName(), spanner.Key{id}, []string{"Count"})
 		if err != nil {
 			return err
 		}
+		_, err = txn.ReadRow(ctx, "TweetDummy2", spanner.Key{id}, []string{"Id"})
+		if err != nil {
+			return err
+		}
+
 		var count int64
-		if err := row.ColumnByName("Count", &count); err != nil {
+		if err := tr.ColumnByName("Count", &count); err != nil {
 			return err
 		}
 		count++
@@ -176,6 +183,55 @@ func (s *defaultTweetStore) Update(ctx context.Context, id string) error {
 		return txn.BufferWrite([]*spanner.Mutation{
 			spanner.Update(s.TableName(), cols, []interface{}{id, count, time.Now(), spanner.CommitTimestamp}),
 		})
+	})
+
+	return err
+}
+
+func (s *defaultTweetStore) InsertBench(ctx context.Context, id string) error {
+	ctx, span := trace.StartSpan(ctx, "/tweet/insertbench")
+	defer span.End()
+
+	ml := []*spanner.Mutation{}
+	now := time.Now()
+
+	t := &Tweet{
+		ID:         id,
+		Content:    id,
+		Favos:      []string{},
+		CreatedAt:  now,
+		UpdatedAt:  now,
+		CommitedAt: spanner.CommitTimestamp,
+	}
+	tm, err := spanner.InsertStruct(s.TableName(), t)
+	if err != nil {
+		return err
+	}
+	ml = append(ml, tm)
+
+	tom, err := NewOperationInsertMutation(uuid.New().String(), "INSERT", "", s.TableName(), t)
+	if err != nil {
+		return err
+	}
+	ml = append(ml, tom)
+
+	for i := 1; i < 4; i++ {
+		td := &TweetDummy{
+			ID:         id,
+			Content:    id,
+			Favos:      []string{},
+			CreatedAt:  now,
+			UpdatedAt:  now,
+			CommitedAt: spanner.CommitTimestamp,
+		}
+		tdm, err := spanner.InsertStruct(fmt.Sprintf("TweetDummy%d", i), td)
+		if err != nil {
+			return err
+		}
+		ml = append(ml, tdm)
+	}
+	_, err = s.sc.ReadWriteTransaction(ctx, func(ctx context.Context, txn *spanner.ReadWriteTransaction) error {
+		return txn.BufferWrite(ml)
 	})
 
 	return err
