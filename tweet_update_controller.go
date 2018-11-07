@@ -4,21 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
-	"sync"
-	"time"
-
-	"cloud.google.com/go/spanner"
 	"github.com/google/uuid"
 	"go.opencensus.io/trace"
+	"sync"
 )
 
-func RunUpdateBenchmarkTweet(ts TweetStore, endCh chan<- error) {
+func RunUpdateBenchmarkTweet(ts TweetStore, goroutine int, endCh chan<- error) {
 	go func() {
 		fmt.Println("Start UpdateTweet")
 
 		var wg sync.WaitGroup
-		for i := 0; i < 80; i++ {
+		for i := 0; i < goroutine; i++ {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
@@ -41,35 +37,15 @@ func workUpdateBenchmarkTweet(ctx context.Context, id string, ts TweetStore, end
 	ctx, span := trace.StartSpan(ctx, "/tweetupdate/update/work")
 	defer span.End()
 
-	now := time.Now()
-
-	t := &Tweet{
-		ID:         id,
-		Author:     getAuthor(),
-		Content:    uuid.New().String(),
-		Favos:      getAuthors(),
-		Sort:       rand.Int(),
-		CreatedAt:  now,
-		UpdatedAt:  now,
-		CommitedAt: spanner.CommitTimestamp,
-	}
-	if err := ts.Insert(ctx, t); err != nil {
+	if err := ts.InsertBench(ctx, id); err != nil {
 		endCh <- err
 		return
 	}
 
-	if err := ts.Update(ctx, id); err != nil {
-		endCh <- err
-		return
-	}
-
-	if err := ts.Update(ctx, id); err != nil {
-		endCh <- err
-		return
-	}
-
-	if err := ts.Update(ctx, id); err != nil {
-		endCh <- err
-		return
+	for i := 0; i < 10; i++ {
+		if err := ts.Update(ctx, id); err != nil {
+			endCh <- err
+			return
+		}
 	}
 }

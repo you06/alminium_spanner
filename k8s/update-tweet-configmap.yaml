@@ -4,4 +4,4 @@ metadata:
   name: update-tweet-config
 data:
   RUN_WORKS: UpdateTweet
-  GOROUTINE: "50"
+  GOROUTINE: "120"

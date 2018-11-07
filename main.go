@@ -98,7 +98,7 @@ func main() {
 		goInsertBenchmarkTweet(tbs, benchmarkCount, endCh)
 	}
 	if wm.isRunWork("UpdateTweet") {
-		RunUpdateBenchmarkTweet(ts, endCh)
+		RunUpdateBenchmarkTweet(ts, goroutine, endCh)
 	}
 	if wm.isRunWork("InsertTweet") {
 		goInsertTweet(ts, workerName, goroutine, endCh)
