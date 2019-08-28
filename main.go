@@ -91,6 +91,7 @@ func main() {
 	ths := NewTweetHashKeyStore(sc)
 	tus := NewTweetUniqueIndexStore(sc)
 	tbs := NewTweetBenchmarkStore(sc, benchmarkTableName)
+	sss := NewSmallSizeStore(sc)
 
 	endCh := make(chan error, 10)
 
@@ -121,6 +122,9 @@ func main() {
 	if wm.isRunWork("InsertBenchmarkJoinData") {
 		// TODO ずっと動き続けるユースケースを想定してchanで終了しているが、こいつは一回しか動かない
 		RunBenchmarkDataCreator(endCh)
+	}
+	if wm.isRunWork("GetSmallSize") {
+		goGetSmallSize(sss, endCh)
 	}
 
 	err = <-endCh
@@ -380,6 +384,18 @@ func goListTweetResultStruct(ts TweetStore, endCh chan<- error) {
 			}
 			for _, v := range l {
 				fmt.Printf("TWEET_ID_AUTHOR = %+v\n", v)
+			}
+		}
+	}()
+}
+
+func goGetSmallSize(sss SmallSizeStore, endCh chan<- error) {
+	go func() {
+		for {
+			ctx := context.Background()
+			_, err := sss.Get(ctx, "small1")
+			if err != nil {
+				endCh <- err
 			}
 		}
 	}()
