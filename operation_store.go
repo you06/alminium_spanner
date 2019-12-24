@@ -6,6 +6,7 @@ import (
 
 	"cloud.google.com/go/spanner"
 	"github.com/pkg/errors"
+	"github.com/sinmetal/alminium_spanner/driver/driver"
 )
 
 // OperationTableName is Operation Table Name
@@ -22,12 +23,12 @@ type Operation struct {
 }
 
 // NewOperationInsertMutation is OperationをInsertするMutex
-func NewOperationInsertMutation(id string, verb string, targetKey string, targetTable string, body interface{}) (*spanner.Mutation, error) {
+func NewOperationInsertMutation(client driver.Driver, id string, verb string, targetKey string, targetTable string, body interface{}) (driver.Mutation, error) {
 	jt, err := json.Marshal(body)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	om, err := spanner.InsertStruct(OperationTableName, &Operation{
+	om, err := client.InsertStruct(OperationTableName, &Operation{
 		ID:          id,
 		CommitedAt:  spanner.CommitTimestamp,
 		VERB:        verb,

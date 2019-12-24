@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"errors"
+	"flag"
 	"fmt"
 	"hash/crc32"
 	"math/rand"
@@ -19,7 +19,24 @@ import (
 	"github.com/google/uuid"
 	"go.opencensus.io/trace"
 	"google.golang.org/api/option"
+	_ "github.com/go-sql-driver/mysql"
+
+	"github.com/pkg/errors"
+	"github.com/sinmetal/alminium_spanner/config"
+	driverCreator "github.com/sinmetal/alminium_spanner/driver"
+	"github.com/sinmetal/alminium_spanner/driver/driver"
 )
+
+var (
+	nmConfigPath = "config"
+)
+
+var (
+	configPath   = flag.String(nmConfigPath, "", "config file path")
+)
+
+// init config
+var cfg = config.Init()
 
 func main() {
 	spannerDatabase := os.Getenv("SPANNER_DATABASE")
@@ -81,17 +98,19 @@ func main() {
 
 	ctx := context.Background()
 
-	sc, err := createClient(ctx, spannerDatabase)
+	var client driver.Driver
+
+	client, err = driverCreator.Init(ctx, cfg)
 	if err != nil {
 		panic(err)
 	}
 
-	ts := NewTweetStore(sc)
-	tcs := NewTweetCompositeKeyStore(sc)
-	ths := NewTweetHashKeyStore(sc)
-	tus := NewTweetUniqueIndexStore(sc)
-	tbs := NewTweetBenchmarkStore(sc, benchmarkTableName)
-	sss := NewSmallSizeStore(sc)
+	ts  := NewTweetStore(client)
+	tcs := NewTweetCompositeKeyStore(client)
+	ths := NewTweetHashKeyStore(client)
+	tus := NewTweetUniqueIndexStore(client)
+	tbs := NewTweetBenchmarkStore(client, benchmarkTableName)
+	sss := NewSmallSizeStore(client)
 
 	endCh := make(chan error, 10)
 
@@ -129,6 +148,21 @@ func main() {
 
 	err = <-endCh
 	fmt.Printf("BOMB %+v", err)
+}
+
+func loadConfig() error {
+	actualFlags := make(map[string]bool)
+	flag.Visit(func(f *flag.Flag) {
+		actualFlags[f.Name] = true
+	})
+
+	if actualFlags[nmConfigPath] {
+		if err := cfg.Load(*configPath); err != nil {
+			return errors.WithStack(err)
+		}
+	}
+
+	return nil
 }
 
 func createClient(ctx context.Context, db string, o ...option.ClientOption) (*spanner.Client, error) {

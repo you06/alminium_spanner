@@ -10,6 +10,8 @@ import (
 	"github.com/pkg/errors"
 	"go.opencensus.io/trace"
 	"google.golang.org/api/iterator"
+
+	"github.com/sinmetal/alminium_spanner/driver/driver"
 )
 
 // TweetStore is TweetTable Functions
@@ -19,6 +21,7 @@ type TweetStore interface {
 	InsertBench(ctx context.Context, id string) error
 	Update(ctx context.Context, id string) error
 	Get(ctx context.Context, key spanner.Key) (*Tweet, error)
+	GetIndexes() []string
 	Query(ctx context.Context, limit int) ([]*Tweet, error)
 	QueryResultStruct(ctx context.Context) ([]*TweetIDAndAuthor, error)
 }
@@ -26,10 +29,10 @@ type TweetStore interface {
 var tweetStore TweetStore
 
 // NewTweetStore is New TweetStore
-func NewTweetStore(sc *spanner.Client) TweetStore {
+func NewTweetStore(client driver.Driver) TweetStore {
 	if tweetStore == nil {
 		tweetStore = &defaultTweetStore{
-			sc: sc,
+			client: client,
 		}
 	}
 	return tweetStore
@@ -49,7 +52,7 @@ type Tweet struct {
 }
 
 type defaultTweetStore struct {
-	sc *spanner.Client
+	client driver.Driver
 }
 
 // TableName is return Table Name for Spanner
@@ -63,15 +66,15 @@ func (s *defaultTweetStore) Insert(ctx context.Context, tweet *Tweet) error {
 	ctx, span := trace.StartSpan(ctx, fmt.Sprintf("/%s/tweet/insert", wn))
 	defer span.End()
 
-	m, err := spanner.InsertStruct(s.TableName(), tweet)
+	m, err := s.client.InsertStruct(s.TableName(), tweet)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	ms := []*spanner.Mutation{
+	ms := []driver.Mutation{
 		m,
 	}
 
-	_, err = s.sc.Apply(ctx, ms)
+	_, err = s.client.Apply(ctx, ms)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -83,7 +86,7 @@ func (s defaultTweetStore) Get(ctx context.Context, key spanner.Key) (*Tweet, er
 	ctx, span := trace.StartSpan(ctx, "/tweet/get")
 	defer span.End()
 
-	row, err := s.sc.Single().ReadRow(ctx, s.TableName(), key, []string{"Author", "CommitedAt", "Content", "CreatedAt", "Favos", "Sort", "UpdatedAt"})
+	row, err := s.client.Single().ReadRow(ctx, s.TableName(), key, s.GetIndexes(), []string{"Author", "CommitedAt", "Content", "CreatedAt", "Favos", "Sort", "UpdatedAt"})
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -97,7 +100,7 @@ func (s *defaultTweetStore) Query(ctx context.Context, limit int) ([]*Tweet, err
 	ctx, span := trace.StartSpan(ctx, "/tweet/query")
 	defer span.End()
 
-	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "TweetSortAsc", spanner.AllKeys(), []string{"Id", "Sort"})
+	iter := s.client.Single().ReadUsingIndex(ctx, s.TableName(), "TweetSortAsc", spanner.AllKeys(), s.GetIndexes(), []string{"Id", "Sort"})
 	defer iter.Stop()
 
 	count := 0
@@ -134,7 +137,7 @@ func (s *defaultTweetStore) QueryResultStruct(ctx context.Context) ([]*TweetIDAn
 	ctx, span := trace.StartSpan(ctx, "/tweet/queryResultStruct")
 	defer span.End()
 
-	iter := s.sc.Single().Query(ctx, spanner.NewStatement("SELECT ARRAY(SELECT STRUCT(Id, Author)) As IdWithAuthor FROM Tweet LIMIT 10;"))
+	iter := s.client.Single().Query(ctx, "SELECT ARRAY(SELECT STRUCT(Id, Author)) As IdWithAuthor FROM Tweet LIMIT 10;")
 	defer iter.Stop()
 
 	type Result struct {
@@ -163,12 +166,12 @@ func (s *defaultTweetStore) Update(ctx context.Context, id string) error {
 	ctx, span := trace.StartSpan(ctx, "/tweet/update")
 	defer span.End()
 
-	_, err := s.sc.ReadWriteTransaction(ctx, func(ctx context.Context, txn *spanner.ReadWriteTransaction) error {
-		tr, err := txn.ReadRow(ctx, s.TableName(), spanner.Key{id}, []string{"Count"})
+	_, err := s.client.ReadWriteTransaction(ctx, func(ctx context.Context, txn driver.Transaction) error {
+		tr, err := txn.ReadRow(ctx, s.TableName(), spanner.Key{id}, s.GetIndexes(), []string{"Count"})
 		if err != nil {
 			return err
 		}
-		_, err = txn.ReadRow(ctx, "TweetDummy2", spanner.Key{id}, []string{"Id"})
+		_, err = txn.ReadRow(ctx, "TweetDummy2", spanner.Key{id}, s.GetIndexes(), []string{"Id"})
 		if err != nil {
 			return err
 		}
@@ -180,8 +183,8 @@ func (s *defaultTweetStore) Update(ctx context.Context, id string) error {
 		count++
 		cols := []string{"Id", "Count", "UpdatedAt", "CommitedAt"}
 
-		return txn.BufferWrite([]*spanner.Mutation{
-			spanner.Update(s.TableName(), cols, []interface{}{id, count, time.Now(), spanner.CommitTimestamp}),
+		return txn.BufferWrite([]driver.Mutation{
+			s.client.Update(s.TableName(), cols, []interface{}{id, count, time.Now(), spanner.CommitTimestamp}),
 		})
 	})
 
@@ -192,7 +195,7 @@ func (s *defaultTweetStore) InsertBench(ctx context.Context, id string) error {
 	ctx, span := trace.StartSpan(ctx, "/tweet/insertbench")
 	defer span.End()
 
-	ml := []*spanner.Mutation{}
+	ml := []driver.Mutation{}
 	now := time.Now()
 
 	t := &Tweet{
@@ -203,13 +206,13 @@ func (s *defaultTweetStore) InsertBench(ctx context.Context, id string) error {
 		UpdatedAt:  now,
 		CommitedAt: spanner.CommitTimestamp,
 	}
-	tm, err := spanner.InsertStruct(s.TableName(), t)
+	tm, err := s.client.InsertStruct(s.TableName(), t)
 	if err != nil {
 		return err
 	}
 	ml = append(ml, tm)
 
-	tom, err := NewOperationInsertMutation(uuid.New().String(), "INSERT", "", s.TableName(), t)
+	tom, err := NewOperationInsertMutation(s.client, uuid.New().String(), "INSERT", "", s.TableName(), t)
 	if err != nil {
 		return err
 	}
@@ -224,15 +227,20 @@ func (s *defaultTweetStore) InsertBench(ctx context.Context, id string) error {
 			UpdatedAt:  now,
 			CommitedAt: spanner.CommitTimestamp,
 		}
-		tdm, err := spanner.InsertStruct(fmt.Sprintf("TweetDummy%d", i), td)
+		tdm, err := s.client.InsertStruct(fmt.Sprintf("TweetDummy%d", i), td)
 		if err != nil {
 			return err
 		}
 		ml = append(ml, tdm)
 	}
-	_, err = s.sc.ReadWriteTransaction(ctx, func(ctx context.Context, txn *spanner.ReadWriteTransaction) error {
+	_, err = s.client.ReadWriteTransaction(ctx, func(ctx context.Context, txn driver.Transaction) error {
 		return txn.BufferWrite(ml)
 	})
 
 	return err
+}
+
+// GetIndexes return index string slice for mysql usage
+func (s *defaultTweetStore) GetIndexes() []string {
+	return []string{"Id"}
 }

@@ -9,6 +9,8 @@ import (
 	"github.com/pkg/errors"
 	"go.opencensus.io/trace"
 	"google.golang.org/api/iterator"
+
+	"github.com/sinmetal/alminium_spanner/driver/driver"
 )
 
 // TweetUniqueIndexStore is TweetTable Functions
@@ -17,15 +19,16 @@ type TweetUniqueIndexStore interface {
 	Insert(ctx context.Context, tweet *TweetUniqueIndex) error
 	Get(ctx context.Context, key spanner.Key) (*TweetUniqueIndex, error)
 	Query(ctx context.Context, limit int) ([]*TweetUniqueIndex, error)
+	GetIndexes() []string
 }
 
 var tweetUniqueIndexStore TweetUniqueIndexStore
 
 // NewTweetUniqueIndexStore is New TweetUniqueIndexStore
-func NewTweetUniqueIndexStore(sc *spanner.Client) TweetUniqueIndexStore {
+func NewTweetUniqueIndexStore(client driver.Driver) TweetUniqueIndexStore {
 	if tweetUniqueIndexStore == nil {
 		tweetUniqueIndexStore = &defaultTweetUniqueIndexStore{
-			sc: sc,
+			client: client,
 		}
 	}
 	return tweetUniqueIndexStore
@@ -45,7 +48,7 @@ type TweetUniqueIndex struct {
 }
 
 type defaultTweetUniqueIndexStore struct {
-	sc *spanner.Client
+	client driver.Driver
 }
 
 // TableName is return Table Name for Spanner
@@ -58,20 +61,20 @@ func (s *defaultTweetUniqueIndexStore) Insert(ctx context.Context, tweet *TweetU
 	ctx, span := trace.StartSpan(ctx, "/tweetUniqueIndex/insert")
 	defer span.End()
 
-	m, err := spanner.InsertStruct(s.TableName(), tweet)
+	m, err := s.client.InsertStruct(s.TableName(), tweet)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	om, err := NewOperationInsertMutation(uuid.New().String(), "INSERT", tweet.ID, s.TableName(), tweet)
+	om, err := NewOperationInsertMutation(s.client, uuid.New().String(), "INSERT", tweet.ID, s.TableName(), tweet)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	ms := []*spanner.Mutation{
+	ms := []driver.Mutation{
 		m,
 		om,
 	}
 
-	_, err = s.sc.Apply(ctx, ms)
+	_, err = s.client.Apply(ctx, ms)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -83,7 +86,7 @@ func (s defaultTweetUniqueIndexStore) Get(ctx context.Context, key spanner.Key) 
 	ctx, span := trace.StartSpan(ctx, "/tweetUniqueIndex/get")
 	defer span.End()
 
-	row, err := s.sc.Single().ReadRow(ctx, s.TableName(), key, []string{"Author", "CommitedAt", "Content", "CreatedAt", "Favos", "Sort", "UpdatedAt"})
+	row, err := s.client.Single().ReadRow(ctx, s.TableName(), key, s.GetIndexes(), []string{"Author", "CommitedAt", "Content", "CreatedAt", "Favos", "Sort", "UpdatedAt"})
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -97,7 +100,7 @@ func (s *defaultTweetUniqueIndexStore) Query(ctx context.Context, limit int) ([]
 	ctx, span := trace.StartSpan(ctx, "/tweetUniqueIndex/query")
 	defer span.End()
 
-	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "sort_asc", spanner.AllKeys(), []string{"Id", "Sort"})
+	iter := s.client.Single().ReadUsingIndex(ctx, s.TableName(), "sort_asc", spanner.AllKeys(), s.GetIndexes(), []string{"Id", "Sort"})
 	defer iter.Stop()
 
 	count := 0
@@ -121,4 +124,9 @@ func (s *defaultTweetUniqueIndexStore) Query(ctx context.Context, limit int) ([]
 	}
 
 	return tweets, nil
+}
+
+// GetIndexes return index string slice for mysql usage
+func (s *defaultTweetUniqueIndexStore) GetIndexes() []string {
+	return []string{"Id"}
 }

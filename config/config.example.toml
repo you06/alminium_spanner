@@ -1,0 +1,12 @@
+# Pocket Configuration
+
+# running mode
+# can be "spanner" and "mysql"
+mode = "spanner"
+host = "127.0.0.1"
+port = 4000
+username = "root"
+password = ""
+
+# concurrency for connection count config
+concurrency = 10

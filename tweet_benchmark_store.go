@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"time"
-
-	"cloud.google.com/go/spanner"
+	
 	"github.com/pkg/errors"
 	"go.opencensus.io/trace"
+
+	"github.com/sinmetal/alminium_spanner/driver/driver"
 )
 
 // TweetBenchmarkStore is TweetTable Functions
@@ -18,10 +19,10 @@ type TweetBenchmarkStore interface {
 var tweetBenchmarkStore TweetBenchmarkStore
 
 // NewTweetBenchmarkStore is New TweetBenchmarkStore
-func NewTweetBenchmarkStore(sc *spanner.Client, tableName string) TweetBenchmarkStore {
+func NewTweetBenchmarkStore(client driver.Driver, tableName string) TweetBenchmarkStore {
 	if tweetBenchmarkStore == nil {
 		tweetBenchmarkStore = &defaultTweetBenchmarkStore{
-			sc:        sc,
+			client:    client,
 			tableName: tableName,
 		}
 	}
@@ -43,7 +44,7 @@ type TweetBenchmark struct {
 }
 
 type defaultTweetBenchmarkStore struct {
-	sc        *spanner.Client
+	client    driver.Driver
 	tableName string
 }
 
@@ -57,17 +58,17 @@ func (s *defaultTweetBenchmarkStore) Insert(ctx context.Context, tweets []*Tweet
 	ctx, span := trace.StartSpan(ctx, "/tweetbenchmark/store/insert")
 	defer span.End()
 
-	ms := []*spanner.Mutation{}
+	ms := []driver.Mutation{}
 
 	for _, tweet := range tweets {
-		m, err := spanner.InsertStruct(s.TableName(), tweet)
+		m, err := s.client.InsertStruct(s.TableName(), tweet)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		ms = append(ms, m)
 	}
 
-	_, err := s.sc.Apply(ctx, ms)
+	_, err := s.client.Apply(ctx, ms)
 	if err != nil {
 		return errors.WithStack(err)
 	}

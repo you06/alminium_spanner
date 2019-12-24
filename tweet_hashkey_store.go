@@ -11,6 +11,8 @@ import (
 	"github.com/pkg/errors"
 	"go.opencensus.io/trace"
 	"google.golang.org/api/iterator"
+
+	"github.com/sinmetal/alminium_spanner/driver/driver"
 )
 
 // TweetHashKeyStore is TweetTable Functions
@@ -20,15 +22,16 @@ type TweetHashKeyStore interface {
 	Insert(ctx context.Context, tweet *TweetHashKey) error
 	Get(ctx context.Context, key spanner.Key) (*TweetHashKey, error)
 	Query(ctx context.Context, limit int) ([]*TweetHashKey, error)
+	GetIndexes() []string
 }
 
 var tweetHashKeyStore TweetHashKeyStore
 
 // NewTweetHashKeyStore is New TweetHashKeyStore
-func NewTweetHashKeyStore(sc *spanner.Client) TweetHashKeyStore {
+func NewTweetHashKeyStore(client driver.Driver) TweetHashKeyStore {
 	if tweetHashKeyStore == nil {
 		tweetHashKeyStore = &defaultTweetHashKeyStore{
-			sc: sc,
+			client: client,
 		}
 	}
 	return tweetHashKeyStore
@@ -47,7 +50,7 @@ type TweetHashKey struct {
 }
 
 type defaultTweetHashKeyStore struct {
-	sc *spanner.Client
+	client driver.Driver
 }
 
 // TableName is return Table Name for Spanner
@@ -65,20 +68,20 @@ func (s *defaultTweetHashKeyStore) Insert(ctx context.Context, tweet *TweetHashK
 	ctx, span := trace.StartSpan(ctx, "/tweetHashKey/insert")
 	defer span.End()
 
-	m, err := spanner.InsertStruct(s.TableName(), tweet)
+	m, err := s.client.InsertStruct(s.TableName(), tweet)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	om, err := NewOperationInsertMutation(uuid.New().String(), "INSERT", tweet.ID, s.TableName(), tweet)
+	om, err := NewOperationInsertMutation(s.client, uuid.New().String(), "INSERT", tweet.ID, s.TableName(), tweet)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	ms := []*spanner.Mutation{
+	ms := []driver.Mutation{
 		m,
 		om,
 	}
 
-	_, err = s.sc.Apply(ctx, ms)
+	_, err = s.client.Apply(ctx, ms)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -90,7 +93,7 @@ func (s defaultTweetHashKeyStore) Get(ctx context.Context, key spanner.Key) (*Tw
 	ctx, span := trace.StartSpan(ctx, "/tweetHashKey/get")
 	defer span.End()
 
-	row, err := s.sc.Single().ReadRow(ctx, s.TableName(), key, []string{"Author", "CommitedAt", "Content", "CreatedAt", "Favos", "Sort", "UpdatedAt"})
+	row, err := s.client.Single().ReadRow(ctx, s.TableName(), key, s.GetIndexes(), []string{"Author", "CommitedAt", "Content", "CreatedAt", "Favos", "Sort", "UpdatedAt"})
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -104,7 +107,7 @@ func (s *defaultTweetHashKeyStore) Query(ctx context.Context, limit int) ([]*Twe
 	ctx, span := trace.StartSpan(ctx, "/tweetHashKey/query")
 	defer span.End()
 
-	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "TweetHashKeySortAsc", spanner.AllKeys(), []string{"Id", "Sort"})
+	iter := s.client.Single().ReadUsingIndex(ctx, s.TableName(), "TweetHashKeySortAsc", spanner.AllKeys(), s.GetIndexes(), []string{"Id", "Sort"})
 	defer iter.Stop()
 
 	count := 0
@@ -128,4 +131,9 @@ func (s *defaultTweetHashKeyStore) Query(ctx context.Context, limit int) ([]*Twe
 	}
 
 	return tweets, nil
+}
+
+// GetIndexes return index string slice for mysql usage
+func (s *defaultTweetHashKeyStore) GetIndexes() []string {
+	return []string{"Id"}
 }

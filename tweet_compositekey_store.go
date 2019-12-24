@@ -10,6 +10,8 @@ import (
 	"github.com/pkg/errors"
 	"go.opencensus.io/trace"
 	"google.golang.org/api/iterator"
+
+	"github.com/sinmetal/alminium_spanner/driver/driver"
 )
 
 // TweetCompositeKeyStore is TweetTable Functions
@@ -18,15 +20,16 @@ type TweetCompositeKeyStore interface {
 	Insert(ctx context.Context, tweet *TweetCompositeKey) error
 	Get(ctx context.Context, key spanner.Key) (*TweetCompositeKey, error)
 	Query(ctx context.Context, limit int) ([]*TweetCompositeKey, error)
+	GetIndexes() []string
 }
 
 var tweetCompositeKeyStore TweetCompositeKeyStore
 
 // NewTweetCompositeKeyStore is New TweetStore
-func NewTweetCompositeKeyStore(sc *spanner.Client) TweetCompositeKeyStore {
+func NewTweetCompositeKeyStore(client driver.Driver) TweetCompositeKeyStore {
 	if tweetCompositeKeyStore == nil {
 		tweetCompositeKeyStore = &defaultTweetCompositeKeyStore{
-			sc: sc,
+			client: client,
 		}
 	}
 	return tweetCompositeKeyStore
@@ -45,7 +48,7 @@ type TweetCompositeKey struct {
 }
 
 type defaultTweetCompositeKeyStore struct {
-	sc *spanner.Client
+	client driver.Driver
 }
 
 // TableName is return Table Name for Spanner
@@ -59,20 +62,20 @@ func (s *defaultTweetCompositeKeyStore) Insert(ctx context.Context, tweet *Tweet
 	ctx, span := trace.StartSpan(ctx, fmt.Sprintf("/%s/tweetCompositeKey/insert", wn))
 	defer span.End()
 
-	m, err := spanner.InsertStruct(s.TableName(), tweet)
+	m, err := s.client.InsertStruct(s.TableName(), tweet)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	om, err := NewOperationInsertMutation(uuid.New().String(), "INSERT", tweet.ID, s.TableName(), tweet)
+	om, err := NewOperationInsertMutation(s.client, uuid.New().String(), "INSERT", tweet.ID, s.TableName(), tweet)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	ms := []*spanner.Mutation{
+	ms := []driver.Mutation{
 		m,
 		om,
 	}
 
-	_, err = s.sc.Apply(ctx, ms)
+	_, err = s.client.Apply(ctx, ms)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -85,7 +88,7 @@ func (s defaultTweetCompositeKeyStore) Get(ctx context.Context, key spanner.Key)
 	ctx, span := trace.StartSpan(ctx, fmt.Sprintf("/%s/tweetCompositeKey/get", wn))
 	defer span.End()
 
-	row, err := s.sc.Single().ReadRow(ctx, s.TableName(), key, []string{"Author", "CommitedAt", "Content", "CreatedAt", "Favos", "Sort", "UpdatedAt"})
+	row, err := s.client.Single().ReadRow(ctx, s.TableName(), key, s.GetIndexes(), []string{"Author", "CommitedAt", "Content", "CreatedAt", "Favos", "Sort", "UpdatedAt"})
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -99,7 +102,7 @@ func (s *defaultTweetCompositeKeyStore) Query(ctx context.Context, limit int) ([
 	ctx, span := trace.StartSpan(ctx, "/tweetCompositeKey/query")
 	defer span.End()
 
-	iter := s.sc.Single().ReadUsingIndex(ctx, s.TableName(), "sort_asc", spanner.AllKeys(), []string{"Id", "Sort"})
+	iter := s.client.Single().ReadUsingIndex(ctx, s.TableName(), "sort_asc", spanner.AllKeys(), s.GetIndexes(), []string{"Id", "Sort"})
 	defer iter.Stop()
 
 	count := 0
@@ -123,4 +126,9 @@ func (s *defaultTweetCompositeKeyStore) Query(ctx context.Context, limit int) ([
 	}
 
 	return tweets, nil
+}
+
+// GetIndexes return index string slice for mysql usage
+func (s *defaultTweetCompositeKeyStore) GetIndexes() []string {
+	return []string{"Id"}
 }

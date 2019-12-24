@@ -6,19 +6,22 @@ import (
 
 	"cloud.google.com/go/spanner"
 	"go.opencensus.io/trace"
+
+	"github.com/sinmetal/alminium_spanner/driver/driver"
 )
 
 type SmallSizeStore interface {
 	TableName() string
 	Get(ctx context.Context, id string) (*SmallSize, error)
+	GetIndexes() []string
 }
 
 var smallSizeStore SmallSizeStore
 
-func NewSmallSizeStore(sc *spanner.Client) SmallSizeStore {
+func NewSmallSizeStore(client driver.Driver) SmallSizeStore {
 	if smallSizeStore == nil {
 		smallSizeStore = &defaultSmallSizeStore{
-			sc: sc,
+			client: client,
 		}
 	}
 	return smallSizeStore
@@ -33,7 +36,7 @@ type SmallSize struct {
 }
 
 type defaultSmallSizeStore struct {
-	sc *spanner.Client
+	client driver.Driver
 }
 
 func (s *defaultSmallSizeStore) TableName() string {
@@ -44,7 +47,7 @@ func (s *defaultSmallSizeStore) Get(ctx context.Context, id string) (*SmallSize,
 	ctx, span := trace.StartSpan(ctx, "/smallsize/get")
 	defer span.End()
 
-	row, err := s.sc.Single().ReadRow(ctx, s.TableName(), spanner.Key{id}, []string{"Id", "Content", "CreatedAt", "UpdatedAt", "CommitedAt"})
+	row, err := s.client.Single().ReadRow(ctx, s.TableName(), spanner.Key{id}, s.GetIndexes(), []string{"Id", "Content", "CreatedAt", "UpdatedAt", "CommitedAt"})
 	if err != nil {
 		return nil, err
 	}
@@ -54,3 +57,9 @@ func (s *defaultSmallSizeStore) Get(ctx context.Context, id string) (*SmallSize,
 	}
 	return &e, nil
 }
+
+// GetIndexes return index string slice for mysql usage
+func (s *defaultSmallSizeStore) GetIndexes() []string {
+	return []string{"Id"}
+}
+
