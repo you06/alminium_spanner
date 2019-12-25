@@ -13,6 +13,7 @@ require (
 	github.com/googleapis/gax-go v2.0.0+incompatible
 	github.com/jmespath/go-jmespath v0.0.0-20160202185014-0b12d6b521d8
 	github.com/juju/errors v0.0.0-20190930114154-d42613fe1ab9
+	github.com/ngaut/log v0.0.0-20180314031856-b8e36e7ba5ac
 	github.com/pkg/errors v0.8.0
 	github.com/stretchr/testify v1.4.0
 	go.opencensus.io v0.21.0

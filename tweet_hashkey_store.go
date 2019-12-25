@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"cloud.google.com/go/spanner"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"go.opencensus.io/trace"
@@ -20,7 +19,7 @@ type TweetHashKeyStore interface {
 	TableName() string
 	NewKey(id string, author string) string
 	Insert(ctx context.Context, tweet *TweetHashKey) error
-	Get(ctx context.Context, key spanner.Key) (*TweetHashKey, error)
+	Get(ctx context.Context, key interface{}) (*TweetHashKey, error)
 	Query(ctx context.Context, limit int) ([]*TweetHashKey, error)
 	GetIndexes() []string
 }
@@ -89,7 +88,7 @@ func (s *defaultTweetHashKeyStore) Insert(ctx context.Context, tweet *TweetHashK
 	return nil
 }
 
-func (s defaultTweetHashKeyStore) Get(ctx context.Context, key spanner.Key) (*TweetHashKey, error) {
+func (s defaultTweetHashKeyStore) Get(ctx context.Context, key interface{}) (*TweetHashKey, error) {
 	ctx, span := trace.StartSpan(ctx, "/tweetHashKey/get")
 	defer span.End()
 
@@ -107,7 +106,7 @@ func (s *defaultTweetHashKeyStore) Query(ctx context.Context, limit int) ([]*Twe
 	ctx, span := trace.StartSpan(ctx, "/tweetHashKey/query")
 	defer span.End()
 
-	iter := s.client.Single().ReadUsingIndex(ctx, s.TableName(), "TweetHashKeySortAsc", spanner.AllKeys(), s.GetIndexes(), []string{"Id", "Sort"})
+	iter := s.client.Single().ReadUsingIndex(ctx, s.TableName(), "TweetHashKeySortAsc", s.client.AllKeys(), s.GetIndexes(), []string{"Id", "Sort"})
 	defer iter.Stop()
 
 	count := 0

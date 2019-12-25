@@ -18,3 +18,5 @@
 *.bin
 
 alminium_spanner
+
+config/config.toml

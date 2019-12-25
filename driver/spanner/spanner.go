@@ -83,6 +83,16 @@ func (s *Spanner) ReadWriteTransaction(ctx context.Context, f func(context.Conte
 	})
 }
 
+// Key implement spanner.Key
+func (s *Spanner) Key(args ...interface{}) interface{} {
+	return spanner.Key(args)
+}
+
+// AllKeys implement spanner.AllKeys
+func (s *Spanner) AllKeys() interface{} {
+	return spanner.AllKeys()
+}
+
 // ReadRow implement spanner's ReadRow function
 func (s *Snapshot) ReadRow(ctx context.Context, table string, key interface{}, indexes, columns []string) (driver.Row, error) {
 	row, err := s.snapshot.ReadRow(ctx, table, key.(spanner.Key), columns)
@@ -156,6 +166,9 @@ func (r *Row) ColumnByName(name string, ptr interface{}) error {
 func (r *Row) ToStruct(p interface{}) error {
 	return r.row.ToStruct(p)
 }
+
+// Stop for implement Row interface
+func (r *Row) Stop() {}
 
 func restoreMutation(mutations []driver.Mutation) []*spanner.Mutation {
 	ms := make([]*spanner.Mutation, len(mutations))

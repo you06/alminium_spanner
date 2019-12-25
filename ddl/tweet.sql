@@ -8,6 +8,7 @@ CREATE TABLE Tweet (
     Favos ARRAY<STRING(MAX)> NOT NULL,
     Sort INT64 NOT NULL,
     UpdatedAt TIMESTAMP NOT NULL,
+    ShardCreatedAt INT64 NOT NULL,
 ) PRIMARY KEY (Id);
 
 CREATE INDEX TweetSortAsc

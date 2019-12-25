@@ -25,3 +25,11 @@ func TestStructToMutationParams(t *testing.T) {
 	*ptrs[0].(*int) = 1919
 	assert.Equal(t, s.ID, 1919)
 }
+
+func TestSlice2Str(t *testing.T) {
+	strSlice := []string{"made", "in", "abyss"}
+	intSlice := []int{1, 1, 4, 5, 1, 4}
+
+	assert.Equal(t, Slice2Str(strSlice), "made,in,abyss")
+	assert.Equal(t, Slice2Str(intSlice), "1,1,4,5,1,4")
+}

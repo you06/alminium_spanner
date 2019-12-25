@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -79,7 +80,8 @@ func parseFields(t reflect.Type) ([]*Field, error) {
 func fieldParser(f reflect.StructField) *Field {
 	name, fromTag := tagParser(f.Tag)
 	if !fromTag {
-		name = strings.ToLower(f.Name)
+		// name = strings.ToLower(f.Name)
+		name = f.Name
 	}
 	return &Field{
 		Name: name,
@@ -109,6 +111,11 @@ func MustParse(val string) time.Time {
 	return t
 }
 
+// FormatMySQLTime format time.Time into string which can be accepted by MySQL
+func FormatMySQLTime(t time.Time) string {
+	return t.Format(mysqlLayout)
+}
+
 // RunRetryableNoWrap implement simplify retry function execution
 func RunRetryableNoWrap(ctx context.Context, f func(context.Context) error) error {
 	var funcErr error
@@ -128,4 +135,19 @@ func RunRetryableNoWrap(ctx context.Context, f func(context.Context) error) erro
 			return funcErr
 		}
 	}
+}
+
+// Slice2Str trans slice to a string for some database doesn't support array type
+func Slice2Str(s interface{}) string {
+	var strSlice []string
+	switch s := s.(type) {
+	case []string:
+		strSlice = s
+	case []int:
+		for _, item := range s {
+			strSlice = append(strSlice, strconv.Itoa(item))
+		}
+	}
+
+	return strings.Join(strSlice, ",")
 }

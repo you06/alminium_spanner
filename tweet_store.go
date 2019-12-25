@@ -100,7 +100,7 @@ func (s *defaultTweetStore) Query(ctx context.Context, limit int) ([]*Tweet, err
 	ctx, span := trace.StartSpan(ctx, "/tweet/query")
 	defer span.End()
 
-	iter := s.client.Single().ReadUsingIndex(ctx, s.TableName(), "TweetSortAsc", spanner.AllKeys(), s.GetIndexes(), []string{"Id", "Sort"})
+	iter := s.client.Single().ReadUsingIndex(ctx, s.TableName(), "TweetSortAsc", s.client.AllKeys(), s.GetIndexes(), []string{"Id", "Sort"})
 	defer iter.Stop()
 
 	count := 0
@@ -167,11 +167,7 @@ func (s *defaultTweetStore) Update(ctx context.Context, id string) error {
 	defer span.End()
 
 	_, err := s.client.ReadWriteTransaction(ctx, func(ctx context.Context, txn driver.Transaction) error {
-		tr, err := txn.ReadRow(ctx, s.TableName(), spanner.Key{id}, s.GetIndexes(), []string{"Count"})
-		if err != nil {
-			return err
-		}
-		_, err = txn.ReadRow(ctx, "TweetDummy2", spanner.Key{id}, s.GetIndexes(), []string{"Id"})
+		tr, err := txn.ReadRow(ctx, s.TableName(), s.client.Key(id), s.GetIndexes(), []string{"Count"})
 		if err != nil {
 			return err
 		}
@@ -182,9 +178,16 @@ func (s *defaultTweetStore) Update(ctx context.Context, id string) error {
 		}
 		count++
 		cols := []string{"Id", "Count", "UpdatedAt", "CommitedAt"}
+		tr.Stop()
+
+		r, err := txn.ReadRow(ctx, "TweetDummy2", s.client.Key(id), s.GetIndexes(), []string{"Id"})
+		if err != nil {
+			return err
+		}
+		r.Stop()
 
 		return txn.BufferWrite([]driver.Mutation{
-			s.client.Update(s.TableName(), cols, []interface{}{id, count, time.Now(), spanner.CommitTimestamp}),
+			s.client.Update(s.TableName(), cols, []interface{}{id, count, time.Now(), time.Now()}),
 		})
 	})
 

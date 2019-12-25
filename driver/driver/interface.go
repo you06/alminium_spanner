@@ -25,6 +25,7 @@ type Transaction interface {
 type Row interface {
 	ColumnByName(name string, ptr interface{}) error
 	ToStruct(p interface{}) error
+	Stop()
 }
 
 // Rows interface
@@ -42,4 +43,6 @@ type Driver interface {
 	Snapshot() Snapshot
 	Single() Snapshot
 	ReadWriteTransaction(ctx context.Context, f func(context.Context, Transaction) error) (time.Time, error)
+	Key(args ...interface{}) interface{}
+	AllKeys() interface{}
 }

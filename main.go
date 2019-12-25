@@ -6,18 +6,16 @@ import (
 	"fmt"
 	"hash/crc32"
 	"math/rand"
-	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"cloud.google.com/go/profiler"
+	// "cloud.google.com/go/profiler"
 	"cloud.google.com/go/spanner"
 	sadmin "cloud.google.com/go/spanner/admin/database/apiv1"
-	"contrib.go.opencensus.io/exporter/stackdriver"
+	// "contrib.go.opencensus.io/exporter/stackdriver"
 	"github.com/google/uuid"
-	"go.opencensus.io/trace"
+	// "go.opencensus.io/trace"
 	"google.golang.org/api/option"
 	_ "github.com/go-sql-driver/mysql"
 
@@ -25,6 +23,7 @@ import (
 	"github.com/sinmetal/alminium_spanner/config"
 	driverCreator "github.com/sinmetal/alminium_spanner/driver"
 	"github.com/sinmetal/alminium_spanner/driver/driver"
+	"github.com/sinmetal/alminium_spanner/pkg/timer"
 )
 
 var (
@@ -32,73 +31,86 @@ var (
 )
 
 var (
-	configPath   = flag.String(nmConfigPath, "", "config file path")
+	configPath = flag.String(nmConfigPath, "", "config file path")
 )
 
 // init config
 var cfg = config.Init()
 
 func main() {
-	spannerDatabase := os.Getenv("SPANNER_DATABASE")
-	fmt.Printf("Env SPANNER_DATABASE:%s\n", spannerDatabase)
+	// spannerDatabase := os.Getenv("SPANNER_DATABASE")
+	// fmt.Printf("Env SPANNER_DATABASE:%s\n", spannerDatabase)
 
-	stackdriverProject := os.Getenv("STACKDRIVER_PROJECT")
-	fmt.Printf("Env STACKDRIVER_PROJECT:%s\n", stackdriverProject)
+	// stackdriverProject := os.Getenv("STACKDRIVER_PROJECT")
+	// fmt.Printf("Env STACKDRIVER_PROJECT:%s\n", stackdriverProject)
 
-	workerName := os.Getenv("WORKER_NAME")
-	fmt.Printf("Env WORKER_NAME:%s\n", workerName)
-	if workerName == "" {
-		workerName = "default"
-	}
+	// workerName := os.Getenv("WORKER_NAME")
+	// fmt.Printf("Env WORKER_NAME:%s\n", workerName)
+	// if workerName == "" {
+	// 	workerName = "default"
+	// }
 
-	runWorks := os.Getenv("RUN_WORKS")
-	fmt.Printf("Env RUN_WORKS:%s\n", runWorks)
-	wm := newWorkManager(runWorks)
+	// runWorks := os.Getenv("RUN_WORKS")
+	// fmt.Printf("Env RUN_WORKS:%s\n", runWorks)
+	// wm := newWorkManager(runWorks)
 
-	goroutineParam := os.Getenv("GOROUTINE")
-	fmt.Printf("Env GOROUTINE:%s\n", goroutineParam)
-	var goroutine int
-	var err error
-	if goroutineParam != "" {
-		goroutine, err = strconv.Atoi(goroutineParam)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	// InsertBenchmarkTweet 用
-	benchmarkTableName := os.Getenv("BENCHMARK_TABLE_NAME")
-	fmt.Printf("Env BENCHMARK_TABLE_NAME:%s\n", benchmarkTableName)
+	// goroutineParam := os.Getenv("GOROUTINE")
+	// fmt.Printf("Env GOROUTINE:%s\n", goroutineParam)
+	// var goroutine int
+	// var err error
+	// if goroutineParam != "" {
+	// 	goroutine, err = strconv.Atoi(goroutineParam)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// }
 
 	// InsertBenchmarkTweet 用
-	benchmarkCountParam := os.Getenv("BENCHMARK_COUNT")
-	fmt.Printf("Env BENCHMARK_COUNT:%s\n", benchmarkCountParam)
-	var benchmarkCount int
-	if benchmarkCountParam != "" {
-		benchmarkCount, err = strconv.Atoi(benchmarkCountParam)
-		if err != nil {
-			panic(err)
-		}
-	}
+	// benchmarkTableName := os.Getenv("BENCHMARK_TABLE_NAME")
+	// fmt.Printf("Env BENCHMARK_TABLE_NAME:%s\n", benchmarkTableName)
+
+	// InsertBenchmarkTweet 用
+	// benchmarkCountParam := os.Getenv("BENCHMARK_COUNT")
+	// fmt.Printf("Env BENCHMARK_COUNT:%s\n", benchmarkCountParam)
+	// var benchmarkCount int
+	// if benchmarkCountParam != "" {
+	// 	benchmarkCount, err = strconv.Atoi(benchmarkCountParam)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// }
 
 	// Profiler initialization, best done as early as possible.
-	if err := profiler.Start(profiler.Config{ProjectID: stackdriverProject, Service: "alminium_spanner", ServiceVersion: "0.0.1"}); err != nil {
-		panic(err)
-	}
+	// if err := profiler.Start(profiler.Config{ProjectID: stackdriverProject, Service: "alminium_spanner", ServiceVersion: "0.0.1"}); err != nil {
+	// 	panic(err)
+	// }
 
-	{
-		exporter, err := stackdriver.NewExporter(stackdriver.Options{
-			ProjectID: stackdriverProject,
-		})
-		if err != nil {
-			panic(err)
-		}
-		trace.RegisterExporter(exporter)
-	}
+	// {
+	// 	exporter, err := stackdriver.NewExporter(stackdriver.Options{
+	// 		ProjectID: stackdriverProject,
+	// 	})
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	trace.RegisterExporter(exporter)
+	// }
+
+	flag.Parse()
+	loadConfig()
+
+	var (
+		wm = newWorkManager(cfg.RunWorks)
+		goroutine = cfg.Concurrency
+		workerName = cfg.WorkerName
+		benchmarkCount = cfg.BenchmarkCount
+	)
 
 	ctx := context.Background()
 
-	var client driver.Driver
+	var (
+		client driver.Driver
+		err    error
+	)
 
 	client, err = driverCreator.Init(ctx, cfg)
 	if err != nil {
@@ -109,8 +121,8 @@ func main() {
 	tcs := NewTweetCompositeKeyStore(client)
 	ths := NewTweetHashKeyStore(client)
 	tus := NewTweetUniqueIndexStore(client)
-	tbs := NewTweetBenchmarkStore(client, benchmarkTableName)
-	sss := NewSmallSizeStore(client)
+	tbs := NewTweetBenchmarkStore(client, cfg.TableName)
+	// sss := NewSmallSizeStore(client)
 
 	endCh := make(chan error, 10)
 
@@ -132,19 +144,19 @@ func main() {
 	if wm.isRunWork("InsertTweetUniqueIndex") {
 		goInsertTweetUniqueIndex(tus, endCh)
 	}
-	if wm.isRunWork("ListTweet") {
-		goListTweet(ts, endCh)
-	}
-	if wm.isRunWork("ListTweetResultStruct") {
-		goListTweetResultStruct(ts, endCh)
-	}
-	if wm.isRunWork("InsertBenchmarkJoinData") {
-		// TODO ずっと動き続けるユースケースを想定してchanで終了しているが、こいつは一回しか動かない
-		RunBenchmarkDataCreator(endCh)
-	}
-	if wm.isRunWork("GetSmallSize") {
-		goGetSmallSize(sss, endCh)
-	}
+	// if wm.isRunWork("ListTweet") {
+	// 	goListTweet(ts, endCh)
+	// }
+	// if wm.isRunWork("ListTweetResultStruct") {
+	// 	goListTweetResultStruct(ts, endCh)
+	// }
+	// if wm.isRunWork("InsertBenchmarkJoinData") {
+	// 	// TODO ずっと動き続けるユースケースを想定してchanで終了しているが、こいつは一回しか動かない
+	// 	RunBenchmarkDataCreator(endCh)
+	// }
+	// if wm.isRunWork("GetSmallSize") {
+	// 	goGetSmallSize(sss, endCh)
+	// }
 
 	err = <-endCh
 	fmt.Printf("BOMB %+v", err)
@@ -157,6 +169,7 @@ func loadConfig() error {
 	})
 
 	if actualFlags[nmConfigPath] {
+		fmt.Println("Load config from", *configPath)
 		if err := cfg.Load(*configPath); err != nil {
 			return errors.WithStack(err)
 		}
@@ -237,7 +250,10 @@ func (m *workManager) isRunWork(work string) bool {
 
 func goInsertBenchmarkTweet(tbs TweetBenchmarkStore, count int, endCh chan<- error) {
 	go func() {
-		ts := []*TweetBenchmark{}
+		var (
+			ti = timer.New()
+			ts = []*TweetBenchmark{}
+		)
 		for i := 0; i < count; i++ {
 			now := time.Now()
 			shardId := crc32.ChecksumIEEE([]byte(now.String())) % 10
@@ -261,9 +277,11 @@ func goInsertBenchmarkTweet(tbs TweetBenchmarkStore, count int, endCh chan<- err
 				}
 				ts = []*TweetBenchmark{}
 			}
+			ti.Add()
 
-			if i%1000 == 0 {
-				fmt.Printf("TWEET_BENCHMARK_INSERT INDEX = %d, ID = %s\n", i, id)
+			if i%1000 == 0 && i != 0 {
+				// fmt.Printf("TWEET_BENCHMARK_INSERT INDEX = %d, ID = %s\n", i, id)
+				ti.CheckPoint()
 			}
 		}
 		endCh <- errors.New("DONE")

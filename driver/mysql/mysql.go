@@ -49,7 +49,7 @@ func Init(ctx context.Context, cfg *config.Config) (driver.Driver, error) {
 		cfg.Database,
 	))
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	db.SetMaxIdleConns(cfg.Concurrency)
@@ -60,23 +60,29 @@ func Init(ctx context.Context, cfg *config.Config) (driver.Driver, error) {
 func (m *MySQL) InsertStruct (table string, in interface{}) (driver.Mutation, error) {
 	cols, vals, _, err := driver.StructToMutationParams(in)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	return &Mutation{
 		stmt: fmt.Sprintf("INSERT INTO %s(%s) VALUES(%s)", table, strings.Join(cols, ","), makePlaceholder(vals)),
-		args: vals,
+		args: filterVals(vals),
 	}, nil
 }
 
 // Update insert update statement preparation
 func (m *MySQL) Update (table string, cols []string, vals []interface{}) driver.Mutation {
-	cond := make([]string, len(cols))
+	var (
+		k = cols[0]
+		v = vals[0]
+	)
+	cols = cols[1:]
+	vals = vals[1:]
+	patch := make([]string, len(cols))
 	for i, col := range cols {
-		cond[i] = fmt.Sprintf("%s=?", col)
+		patch[i] = fmt.Sprintf("%s=?", col)
 	}
 	return &Mutation{
-		stmt: fmt.Sprintf("UPDATE %s SET %s", table, strings.Join(cond, ", ")),
-		args: vals,
+		stmt: fmt.Sprintf("UPDATE %s SET %s WHERE %s=?", table, strings.Join(patch, ", "), k),
+		args: append(vals, v),
 	}
 }
 
@@ -84,16 +90,17 @@ func (m *MySQL) Update (table string, cols []string, vals []interface{}) driver.
 func (m *MySQL) Apply(ctx context.Context, mutations []driver.Mutation) (time.Time, error) {
 	txn, err := m.db.Begin()
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, errors.WithStack(err)
 	}
 	for _, m := range mutations {
 		mu := m.(*Mutation)
 		if _, err := txn.Exec(mu.stmt, mu.args...); err != nil {
-			return time.Time{}, err
+			fmt.Printf("%+v\n", mu)
+			return time.Time{}, errors.WithStack(err)
 		}
 	}
 	if err := txn.Commit(); err != nil {
-		return time.Time{}, err
+		return time.Time{}, errors.WithStack(err)
 	}
 	return time.Now(), nil
 }
@@ -120,22 +127,36 @@ func (m *MySQL) ReadWriteTransaction(ctx context.Context, f func(context.Context
 	e := driver.RunRetryableNoWrap(ctx, func (c context.Context) error {
 		tx, err := m.db.Begin()
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		if err := f(ctx, &Transaction{tx: tx}); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
-		return nil
+		// return nil
 		// maybe already commit in function f
-		// return tx.Commit()
+		return tx.Commit()
 	})
 	return time.Time{}, e
+}
+
+// Key wrap args into key
+func (m *MySQL) Key(args ...interface{}) interface{} {
+	var res []interface{}
+	for _, arg := range args {
+		res = append(res, arg)
+	}
+	return res
+}
+
+// AllKeys implement spanner.AllKeys
+func (m *MySQL) AllKeys() interface{} {
+	return nil
 }
 
 func (t *Transaction) read(ctx context.Context, query string, args []interface{}) (*sql.Rows, error) {
 	rows, err := t.tx.Query(query, args...)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	return rows, nil
 }
@@ -146,13 +167,14 @@ func (t *Transaction) ReadRow(ctx context.Context, table string, key interface{}
 	switch key := key.(type) {
 	case []interface{}:
 		k = key
+	case nil:
 	default:
 		k = []interface{}{key}
 	}
 	query := fmt.Sprintf("SELECT %s FROM %s WHERE %s", strings.Join(columns, ","), table, makeCondition(indexes))
 	rows, err := t.read(ctx, query, k)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	return &Row{rows: rows}, nil
 }
@@ -188,7 +210,7 @@ func (t *Transaction) BufferWrite(ms []driver.Mutation) error {
 	for _, m := range ms {
 		mu := m.(*Mutation)
 		if _, err := t.tx.Exec(mu.stmt, mu.args...); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 	return nil
@@ -216,7 +238,7 @@ func (r *Rows) Done() error {
 func (r *Row) ColumnByName(name string, ptr interface{}) error {
 	cols, err := r.rows.Columns()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	if r.rows.Next() {
 		acceptor := make([]interface{}, len(cols))
@@ -236,12 +258,17 @@ func (r *Row) ColumnByName(name string, ptr interface{}) error {
 func (r *Row) ToStruct(p interface{}) error {
 	_, _, ptrs, err := driver.StructToMutationParams(p)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	if r.rows.Next() {
 		r.rows.Scan(ptrs...)
 	}
 	return nil
+}
+
+// Stop implement Stop
+func (r *Row) Stop() {
+	_ = r.rows.Close()
 }
 
 func makePlaceholder(vals interface{}) string {
@@ -263,4 +290,16 @@ func makeCondition(indexes []string) string {
 		cond = append(cond, fmt.Sprintf("%s=?", index))
 	}
 	return strings.Join(cond, " AND ")
+}
+
+func filterVals(vals []interface{}) []interface{} {
+	for i, v := range vals {
+		switch v := v.(type) {
+		case []string, []int:
+			vals[i] = driver.Slice2Str(v)
+		// case time.Time:
+		// 	vals[i] = driver.FormatMySQLTime(v)
+		}
+	}
+	return vals
 }

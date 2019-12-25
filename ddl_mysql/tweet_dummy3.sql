@@ -1,0 +1,21 @@
+DROP TABLE IF EXISTS TweetDummy3;
+
+CREATE TABLE TweetDummy3 (
+    Id VARCHAR(1023) NOT NULL,
+    Author VARCHAR(1023) NOT NULL,
+    CommitedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    Content VARCHAR(1023) NOT NULL,
+    Count INT(64) NOT NULL,
+    CreatedAt TIMESTAMP NOT NULL,
+    Favos VARCHAR(1023) NOT NULL,
+    Sort INT(64) NOT NULL,
+    UpdatedAt TIMESTAMP NOT NULL,
+    PRIMARY KEY (Id)
+);
+
+CREATE INDEX TweetDummy3SortAsc
+ON TweetDummy3 (
+	Sort
+);
+
+CREATE UNIQUE INDEX TweetDummy3Content ON TweetDummy3(Content);

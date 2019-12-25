@@ -24,13 +24,19 @@ type Spanner struct {
 
 // Config struct
 type Config struct {
+	// basic configuration
 	Mode        string `toml:"mode"`
 	Database    string `toml:"database"`
 	Host        string `toml:"host"`
 	Port        int    `toml:"port"`
 	Username    string `toml:"username"`
 	Password    string `toml:"password"`
-	Concurrency int    `toml:"concurrency"`
+	// task configuration
+	WorkerName     string `toml:"worker-name"`
+	RunWorks       string `toml:"run-works"`
+	Concurrency    int    `toml:"concurrency"`
+	TableName      string `toml:"table-name"`
+	BenchmarkCount int    `toml:"benchmark-count"`
 }
 
 var initConfig = Config{

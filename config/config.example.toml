@@ -8,5 +8,13 @@ port = 4000
 username = "root"
 password = ""
 
+# seperate run-works with ","
+run-works = ""
 # concurrency for connection count config
 concurrency = 10
+# optional work-name
+worker-name = "Tweer Benchmark"
+# when running InsertBenchmarkTweet workload, table-name should be given
+table-name = "Tweet"
+# benchmarkCount
+benchmark-count = 100000000
