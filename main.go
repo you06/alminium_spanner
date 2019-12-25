@@ -281,7 +281,7 @@ func goInsertBenchmarkTweet(tbs TweetBenchmarkStore, count int, endCh chan<- err
 
 			if i%1000 == 0 && i != 0 {
 				// fmt.Printf("TWEET_BENCHMARK_INSERT INDEX = %d, ID = %s\n", i, id)
-				ti.CheckPoint()
+				ti.Check()
 			}
 		}
 		endCh <- errors.New("DONE")
@@ -289,6 +289,8 @@ func goInsertBenchmarkTweet(tbs TweetBenchmarkStore, count int, endCh chan<- err
 }
 
 func goInsertTweet(ts TweetStore, workerName string, goroutine int, endCh chan<- error) {
+	ti := timer.New()
+	ti.SetAutoCheck(1000)
 	go func() {
 		for {
 			var wg sync.WaitGroup
@@ -310,7 +312,8 @@ func goInsertTweet(ts TweetStore, workerName string, goroutine int, endCh chan<-
 					}); err != nil {
 						endCh <- err
 					}
-					fmt.Printf("TWEET_INSERT ID = %s, i = %d\n", id, i)
+					ti.Add()
+					// fmt.Printf("TWEET_INSERT ID = %s, i = %d\n", id, i)
 				}(i)
 			}
 			wg.Wait()
@@ -319,6 +322,8 @@ func goInsertTweet(ts TweetStore, workerName string, goroutine int, endCh chan<-
 }
 
 func goInsertTweetCompositeKey(tcs TweetCompositeKeyStore, workerName string, goroutine int, endCh chan<- error) {
+	ti := timer.New()
+	ti.SetAutoCheck(1000)
 	go func() {
 		for {
 			var wg sync.WaitGroup
@@ -341,7 +346,8 @@ func goInsertTweetCompositeKey(tcs TweetCompositeKeyStore, workerName string, go
 					if err := tcs.Insert(ctx, tweet); err != nil {
 						endCh <- err
 					}
-					fmt.Printf("TWEET_COMPOSITEKEY_INSERT ID = %s, Author = %s\n", id, tweet.Author)
+					ti.Add()
+					// fmt.Printf("TWEET_COMPOSITEKEY_INSERT ID = %s, Author = %s\n", id, tweet.Author)
 				}(i)
 			}
 			wg.Wait()
@@ -350,6 +356,8 @@ func goInsertTweetCompositeKey(tcs TweetCompositeKeyStore, workerName string, go
 }
 
 func goInsertTweetHashKey(ths TweetHashKeyStore, workerName string, goroutine int, endCh chan<- error) {
+	ti := timer.New()
+	ti.SetAutoCheck(1000)
 	go func() {
 		for {
 			var wg sync.WaitGroup
@@ -373,7 +381,8 @@ func goInsertTweetHashKey(ths TweetHashKeyStore, workerName string, goroutine in
 					if err := ths.Insert(ctx, tweet); err != nil {
 						endCh <- err
 					}
-					fmt.Printf("TWEET_HASHKEY_INSERT ID = %s\n", id)
+					ti.Add()
+					// fmt.Printf("TWEET_HASHKEY_INSERT ID = %s\n", id)
 				}(i)
 			}
 			wg.Wait()
@@ -382,6 +391,8 @@ func goInsertTweetHashKey(ths TweetHashKeyStore, workerName string, goroutine in
 }
 
 func goInsertTweetUniqueIndex(tus TweetUniqueIndexStore, endCh chan<- error) {
+	ti := timer.New()
+	ti.SetAutoCheck(1000)
 	go func() {
 		for {
 			ctx := context.Background()
@@ -400,7 +411,8 @@ func goInsertTweetUniqueIndex(tus TweetUniqueIndexStore, endCh chan<- error) {
 			if err := tus.Insert(ctx, tweet); err != nil {
 				endCh <- err
 			}
-			fmt.Printf("TWEET_UNIQUEINDEX_INSERT ID = %s\n", id)
+			ti.Add()
+			// fmt.Printf("TWEET_UNIQUEINDEX_INSERT ID = %s\n", id)
 		}
 	}()
 }

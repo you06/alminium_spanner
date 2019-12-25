@@ -9,7 +9,8 @@ import (
 // Timer struct
 type Timer struct {
 	sync.Mutex
-	n int64
+	n          int64
+	m          int64
 	lastBatchN int64
 	checkPoint time.Time
 	startPoint time.Time
@@ -28,6 +29,7 @@ func (t *Timer) Add() {
 	t.Lock()
 	defer t.Unlock()
 	t.n++
+	t.autoCheck()
 }
 
 // Addn add n at once
@@ -35,16 +37,35 @@ func (t *Timer) Addn(n int64) {
 	t.Lock()
 	defer t.Unlock()
 	t.n += n
+	t.autoCheck()
 }
 
-// CheckPoint insert point and print QPS
-func (t *Timer) CheckPoint() {
-	t.Lock()
-	defer t.Unlock()
+// SetAutoCheck set up an auto check up by calc mod
+func (t *Timer) SetAutoCheck(m int64) {
+	t.m = m
+}
+
+func (t *Timer) autoCheck() {
+	if t.m == 0 {
+		return
+	}
+	if t.n % t.m == 0 {
+		t.check()
+	}
+}
+
+func (t *Timer) check() {
 	now := time.Now()
 	t.PrintQPS(now)
 	t.checkPoint = now
 	t.lastBatchN = t.n
+}
+
+// Check insert point and print QPS
+func (t *Timer) Check() {
+	t.Lock()
+	defer t.Unlock()
+	t.check()
 }
 
 // PrintQPS log QPS
